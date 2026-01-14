@@ -1,0 +1,24 @@
+{
+  "name": "quantum-game",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Digital recreation of the Quantum board game - a 4X space strategy game",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:web",
+    "dev:web": "npm run dev --workspace=@quantum/web",
+    "dev:api": "npm run dev --workspace=@quantum/api",
+    "build": "npm run build --workspaces --if-present",
+    "build:packages": "npm run build --workspace=@quantum/types && npm run build --workspace=@quantum/game-engine && npm run build --workspace=@quantum/ai",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "clean": "rm -rf node_modules packages/*/dist apps/*/dist packages/*/node_modules apps/*/node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

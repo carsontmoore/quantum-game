@@ -1,0 +1,164 @@
+
+/* CSS */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom properties for game theming */
+:root {
+  --color-space-dark: #0a0a1a;
+  --color-space-blue: #1a1a3e;
+  --color-nebula-purple: #4a1a6b;
+  --color-star-gold: #fbbf24;
+  --color-plasma-cyan: #22d3ee;
+  
+  /* Faction colors */
+  --faction-quantum: #3b82f6;
+  --faction-void: #8b5cf6;
+  --faction-stellar: #ef4444;
+  --faction-nebula: #10b981;
+}
+
+/* Dark space theme base */
+html {
+  background: linear-gradient(180deg, var(--color-space-dark) 0%, var(--color-space-blue) 100%);
+  min-height: 100vh;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #e2e8f0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-space-dark);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-space-blue);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-nebula-purple);
+}
+
+/* Ship dice styling */
+.ship-die {
+  @apply relative w-12 h-12 rounded-lg flex items-center justify-center font-bold text-xl;
+  @apply transition-all duration-200 ease-out;
+  @apply shadow-lg;
+}
+
+.ship-die:hover {
+  @apply scale-110 shadow-xl;
+}
+
+.ship-die.selected {
+  @apply ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900;
+}
+
+/* Planet styling */
+.planet {
+  @apply rounded-full flex items-center justify-center font-bold;
+  @apply bg-gradient-to-br from-slate-600 to-slate-800;
+  @apply border-2 border-slate-500;
+  @apply shadow-inner;
+}
+
+.planet.has-cube {
+  @apply border-4;
+}
+
+/* Orbital position markers */
+.orbital-slot {
+  @apply w-10 h-10 rounded-full border-2 border-dashed border-slate-600;
+  @apply flex items-center justify-center;
+  @apply transition-colors duration-150;
+}
+
+.orbital-slot.valid-target {
+  @apply border-green-500 bg-green-500/20 cursor-pointer;
+}
+
+.orbital-slot.valid-target:hover {
+  @apply bg-green-500/40;
+}
+
+/* Card styling */
+.advance-card {
+  @apply rounded-lg p-3 border;
+  @apply transition-all duration-200;
+}
+
+.advance-card.gambit {
+  @apply bg-amber-900/50 border-amber-600;
+}
+
+.advance-card.command {
+  @apply bg-blue-900/50 border-blue-600;
+}
+
+.advance-card:hover {
+  @apply scale-105 shadow-lg;
+}
+
+/* Action button */
+.action-btn {
+  @apply px-4 py-2 rounded-lg font-medium;
+  @apply transition-all duration-150;
+  @apply disabled:opacity-50 disabled:cursor-not-allowed;
+}
+
+.action-btn.primary {
+  @apply bg-blue-600 hover:bg-blue-500 text-white;
+}
+
+.action-btn.secondary {
+  @apply bg-slate-700 hover:bg-slate-600 text-slate-200;
+}
+
+.action-btn.danger {
+  @apply bg-red-600 hover:bg-red-500 text-white;
+}
+
+/* Animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px currentColor, 0 0 10px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 10px currentColor, 0 0 20px currentColor, 0 0 30px currentColor;
+  }
+}
+
+.glow-pulse {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Grid backgrounds */
+.space-grid {
+  background-image: 
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}

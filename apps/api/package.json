@@ -1,0 +1,31 @@
+{
+  "name": "@quantum/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@quantum/types": "*",
+    "@quantum/game-engine": "*",
+    "@quantum/ai": "*",
+    "hono": "^4.6.0",
+    "@hono/node-server": "^1.13.0",
+    "mongoose": "^8.9.0",
+    "zod": "^3.24.0",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.2"
+  }
+}
