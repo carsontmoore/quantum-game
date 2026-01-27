@@ -49,6 +49,14 @@
     - Verify attack position conditional for players - AI was able to initiate attack without ships moving and/or being in a valid (adjacent) orbital position for attack
 - Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
 - [ ] Momentum bug needs to be edited to allow a ship to move a second time / (re)use an ability
+- [ ] Advance card UI ? Logos / Images?
+  - What are the numbers on each card currently representing ?
+- [ ] Reorganization modal needs to inform user which ships (locations) are being chosen for reconfigure (specifically important in the case of duplicate ship types - user needs to know which scout / 6 is being removed and which stays in orbit for example)
+- [ ] BUG : Deploy phase during Reorganization ends after first deployment, even with additional ship deploy options available
+- [ ] Handle user choosing 'SKIP'  - reference rules - is user allowed to defer taking a card until a later turn? Do they lose the ability to gain a card if choosing skip ?
+- [ ] Tests for playing cards in combination (a key feature of strategy in Quantum)
+- [ ] BUG:  Deploy button active in ActionBar despite user actions being 0. Clicking does nothing but button should not be enabled if action count is zero (unless reactivated due to advance card effect)
+
 
 ---
 

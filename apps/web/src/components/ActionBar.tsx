@@ -9,7 +9,7 @@ import clsx from 'clsx';
 export function ActionBar() {
   const gameState = useGameStore(state => state.gameState);
   const currentPlayer = useGameStore(selectCurrentPlayer);
-  const { availableActions, selectedShipId, performAction, endTurn, isLoading, isDeployMode, selectedScrapyardIndex, enterDeployMode, exitDeployMode, pendingGambitEffect, isFreeDeployMode } = useGameStore();
+  const { availableActions, selectedShipId, performAction, endTurn, isLoading, isDeployMode, selectedScrapyardIndex, enterDeployMode, exitDeployMode, pendingGambitEffect, isFreeDeployMode, relocationPhase } = useGameStore();
 
   if (!gameState || !currentPlayer) return null;
 
@@ -27,7 +27,11 @@ export function ActionBar() {
         {/* Left: Action info */}
         <div className="flex items-center gap-4">
           <div className="text-sm text-slate-400">
-            {isAITurn ? (
+            {relocationPhase === 'selectDestination' ? ( 
+              <span className="text-yellow-400 font-medium">
+                Click a highlighted planet to relocate the cube
+              </span>
+            ) : isAITurn ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin">⚙️</span>
                 AI is thinking...

@@ -726,9 +726,7 @@ private executeGambitEffect(card: AdvanceCard, player: Player): void {
       break;
       
     case 'RELOCATION':
-      // Move opponent's cube - requires target selection UI
-      // TODO: This needs UI flow - for now log warning
-      console.warn('Relocation effect requires target selection - not yet implemented');
+      // Handled via UI flow in gameStore - no immediate effect
       break;
       
     case 'REORGANIZATION':
@@ -775,6 +773,44 @@ reorganizeShips(playerId: string, shipIds: string[], scrapyardIndices: number[])
     }
   }
 
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState() };
+}
+
+// ===========================================================================
+// RELOCATION
+// ===========================================================================
+
+relocateCube(playerId: string, sourceTileId: string, destTileId: string): Result<GameState> {
+  const sourceTile = getTile(this.state, sourceTileId);
+  const destTile = getTile(this.state, destTileId);
+  
+  if (!sourceTile || !destTile) {
+    return { success: false, error: 'Invalid tile' };
+  }
+  
+  if (!sourceTile.quantumCube) {
+    return { success: false, error: 'No cube on source planet' };
+  }
+  
+  const cubeOwnerId = sourceTile.quantumCube;
+  
+  // Can't relocate your own cube
+  if (cubeOwnerId === playerId) {
+    return { success: false, error: 'Cannot relocate your own cube' };
+  }
+  
+  // Destination can't already have this player's cube
+  if (destTile.quantumCube === cubeOwnerId) {
+    return { success: false, error: 'Opponent already has cube on destination planet' };
+  }
+  
+  // Move the cube
+  sourceTile.quantumCube = null;
+  destTile.quantumCube = cubeOwnerId;
+  
+  // Update the cube owner's remaining count (no change - just moved)
+  
   this.state.updatedAt = new Date();
   return { success: true, data: this.getState() };
 }

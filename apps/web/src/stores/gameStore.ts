@@ -58,6 +58,10 @@ interface GameStore {
   isFreeDeployMode: boolean;
   showReorganizationModal: boolean;
   reorganizationPhase: 'reroll' | 'deploy' | null;
+  showRelocationModal : boolean;
+  relocationPhase: 'selectCube' | 'selectDestination' | null;
+  selectedRelocationCube: { tileId: string; playerId: string } | null;
+  highlightedTiles: string[];
 
   // Engine (for local games)
   engine: GameEngine | null;
@@ -90,6 +94,10 @@ interface GameStore {
   executeReorganization: (shipIds: string[], scrapyardIndices: number[]) => void;
   finishReorganizationDeploy: () => void;
   setSelectedScrapyardIndex: (index: number) => void;
+  // Action to show relocation modal
+  selectRelocationCube: (tileId: string, cubePlayerId: string) => void;
+  executeRelocation: (destTileId: string) => void;
+  cancelRelocation: () => void;
 
 
   // AI
@@ -136,7 +144,11 @@ export const useGameStore = create<GameStore>()(
     isFreeDeployMode: false,
     showReorganizationModal: false,
     reorganizationPhase: null,
-    
+    showRelocationModal: false,
+    relocationPhase: null,
+    selectedRelocationCube: null,
+    highlightedTiles: [],
+
     // Create a new local game
     createLocalGame: (options) => {
       try {
@@ -213,16 +225,20 @@ export const useGameStore = create<GameStore>()(
 
           case 'deploy':
             const { isFreeDeployMode, pendingGambitEffect } = get();
+            console.log('Deploy case:', { isFreeDeployMode, pendingGambitEffect, shipIndex: action.shipIndex });
   
             if (isFreeDeployMode && (pendingGambitEffect?.type === 'EXPANSION' || pendingGambitEffect?.type === 'REORGANIZATION')) {
+              console.log('Entering free deploy branch');
               result = engine.freeDeploy(playerId, action.shipIndex, action.targetPosition);
               if (result.success) {
                 engine.resetTurnFlags(playerId);
                 // get().clearPendingGambitEffect();
                 // get().exitDeployMode();
                 const updatedPlayer = result.data.players.find(p => p.id === playerId);
+                console.log('After freeDeploy, scrapyard length:', updatedPlayer?.scrapyard.length);
 
                 if (pendingGambitEffect?.type === 'REORGANIZATION' && updatedPlayer && updatedPlayer.scrapyard.length > 0) {
+                  console.log('Entering reorganization continue branch');
                   // More ships to deploy - recalculate valid positions and stay in deploy mode
                   const validDeployPositions: Position[] = [];
                   for (const tile of result.data.tiles) {
@@ -238,11 +254,18 @@ export const useGameStore = create<GameStore>()(
                       }
                     }
                   }
+                  console.log('Valid deploy positions:', validDeployPositions);
+                  console.log('About to set state for continued deploy');
                   set({
+                    gameState: result.data,
+                    availableActions: engine.getAvailableActions(),
                     highlightedPositions: validDeployPositions,
                     selectedScrapyardIndex: 0,
                     isDeployMode: true,
+                    isFreeDeployMode: true,
+                    isLoading: false,
                   });
+                  return true; // Return early to skip post-switch logic
                 } else {
                   // Expansion complete or Reorganization deploys complete
                   get().clearPendingGambitEffect();
@@ -250,6 +273,7 @@ export const useGameStore = create<GameStore>()(
                   if (pendingGambitEffect?.type === 'REORGANIZATION') {
                     set({ reorganizationPhase: null });
                   }
+                  // Let post-switch logic handle state update
                 }
               }
             } else {
@@ -402,8 +426,14 @@ selectCard: (card: AdvanceCard) => {
         return;
 
       case 'RELOCATION' :
-        // TODO: future implementation
-        break;
+        set({
+          gameState: updatedState,
+          pendingCardSelections: pendingCardSelections - 1,
+          showCardSelection: false,
+          showRelocationModal: true,
+          relocationPhase: 'selectCube',
+        });
+        return;
 
       case 'SABOTAGE' :
         // TODO: future implementation
@@ -542,6 +572,53 @@ selectCard: (card: AdvanceCard) => {
       get().clearPendingGambitEffect();
       get().exitDeployMode();
       set({ reorganizationPhase: null });
+      get().endTurn();
+    },
+
+    // Select Relocation and execute
+    selectRelocationCube: (tileId, cubePlayerId) => {
+      const { gameState } = get();
+      if (!gameState) return;
+
+      // Calculate valid destination planets (any without this opponent's cube)
+      const validDestinations = gameState.tiles
+        .filter(t => t.id !== tileId && t.quantumCube !== cubePlayerId)
+        .map(t => t.id);
+
+      set({
+        showRelocationModal: false,
+        relocationPhase: 'selectDestination',
+        selectedRelocationCube: { tileId, playerId: cubePlayerId },
+        highlightedTiles: validDestinations,
+      });
+    },
+
+    executeRelocation: (destTileId) => {
+      const { engine, selectedRelocationCube, gameState } = get();
+      if (!engine || !selectedRelocationCube || !gameState) return;
+
+      const playerId = gameState.currentPlayerId;
+      
+      const result = engine.relocateCube(playerId, selectedRelocationCube.tileId, destTileId);
+  
+      if (result.success) {
+        set({
+          gameState: result.data,
+          relocationPhase: null,
+          selectedRelocationCube: null,
+          highlightedTiles: [],
+        });
+        get().endTurn();
+      }
+    },
+
+    cancelRelocation: () => {
+      set({
+        showRelocationModal: false,
+        relocationPhase: null,
+        selectedRelocationCube: null,
+        highlightedTiles: [],
+      });
       get().endTurn();
     },
 

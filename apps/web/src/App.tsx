@@ -16,6 +16,7 @@ import { CardDetailModal } from './components/CardDetailModal';
 import { useState } from 'react';
 import { AdvanceCard } from '@quantum/types';
 import { ReorganizationModal } from './components/ReorganizationModal';
+import { RelocationModal } from './components/RelocationModal';
 
 function App() {
   const { 
@@ -135,6 +136,7 @@ function App() {
       />
 
       <ReorganizationModal />
+      <RelocationModal />
     </div>
   );
 }

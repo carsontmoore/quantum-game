@@ -29,9 +29,14 @@ export function GameBoard() {
     isDeployMode,
     selectedScrapyardIndex,
     exitDeployMode, 
+    highlightedTiles,
+    relocationPhase,
   } = useGameStore();
   
   if (!gameState) return null;
+
+  // Helper function to check if tile is highlighted
+  const isTileHighlighted = (tileId: string) => highlightedTiles.includes(tileId);
 
   // Calculate board dimensions
   const { minX, minY, maxX, maxY } = useMemo(() => {
@@ -54,7 +59,20 @@ export function GameBoard() {
 
   // Handle cell click
   const handleCellClick = (x: number, y: number) => {
-     console.log('Cell clicked:', { x, y, isDeployMode, selectedScrapyardIndex, isHighlighted: isHighlighted(x, y) });
+    if (relocationPhase === 'selectDestination') {
+      console.log('Relocation click:', { x, y, highlightedTiles });
+      // Find which tile this cell belongs to
+      const tile = gameState.tiles.find(t => 
+        Math.abs(t.position.x - x) <= 1 && Math.abs(t.position.y - y) <= 1
+      );
+      console.log('Tile found:', tile);
+      console.log('Is highlighted:', tile ? highlightedTiles.includes(tile.id) : 'no tile');
+      if (tile && highlightedTiles.includes(tile.id)) {
+        useGameStore.getState().executeRelocation(tile.id);
+        return;
+      }
+    }
+    console.log('Cell clicked:', { x, y, isDeployMode, selectedScrapyardIndex, isHighlighted: isHighlighted(x, y) });
     if (!isHighlighted(x, y)) return;
     // Handle Deploy Mode
     if (isDeployMode && selectedScrapyardIndex !== null) {
@@ -63,7 +81,7 @@ export function GameBoard() {
         shipIndex: selectedScrapyardIndex,
         targetPosition: { x, y },
       });
-      exitDeployMode();
+      // Exit Deploy Mode not required - performAction handles it
       return;
     }
     // Handle move/attack (requires selected ship)
@@ -134,6 +152,7 @@ export function GameBoard() {
               {/* Planet */}
               <div
                 className={clsx(
+                  isTileHighlighted(tile.id) && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-slate-900',
                   'planet absolute flex items-center justify-center text-lg font-bold',
                   'transform -translate-x-1/2 -translate-y-1/2',
                   cubeOwner && 'has-cube'
@@ -145,6 +164,11 @@ export function GameBoard() {
                   height: CELL_SIZE * 0.9,
                   borderColor: faction?.color || undefined,
                   boxShadow: faction ? `0 0 20px ${faction.color}40` : undefined,
+                }}
+                onClick={() => {
+                  if (isTileHighlighted(tile.id) && relocationPhase === 'selectDestination') {
+                    useGameStore.getState().executeRelocation(tile.id);
+                  }
                 }}
               >
                 {tile.planetNumber}
