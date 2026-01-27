@@ -58,6 +58,7 @@ import {
   positionsEqual,
   getMovePath,
   getShipAtPosition,
+  getOrbitalPositions,
 } from './utils/board.js';
 
 // =============================================================================
@@ -109,6 +110,18 @@ export class GameEngine {
     }
   }
   
+  // ===========================================================================
+  // RESET TURN FLAGS
+  // ===========================================================================
+
+  resetTurnFlags(playerId: string): void {
+  const player = getPlayer(this.state, playerId);
+  if (player) {
+    player.cubesPlacedThisTurn = 0;
+    player.achievedBreakthroughThisTurn = false;
+  }
+}
+
   // ===========================================================================
   // ACTION: RECONFIGURE
   // ===========================================================================
@@ -204,6 +217,52 @@ export class GameEngine {
     return { success: true, data: this.getState() };
   }
   
+  // ===========================================================================
+  // ACTION: Free DEPLOY
+  // ===========================================================================
+
+  freeDeploy(playerId: string, shipIndex: number, targetPosition: Position): Result<GameState> {
+    const player = getPlayer(this.state, playerId);
+    if (!player) {
+      return { success: false, error: 'Player not found' };
+    }
+    
+    if (player.scrapyard.length <= shipIndex) {
+      return { success: false, error: 'Invalid scrapyard index' };
+    }
+    
+    const tile = this.state.tiles.find(t => {
+      const orbitals = getOrbitalPositions(t);
+      return orbitals.some(pos => pos.x === targetPosition.x && pos.y === targetPosition.y);
+    });
+    
+    if (!tile || tile.quantumCube !== playerId) {
+      return { success: false, error: 'Invalid deploy position' };
+    }
+    
+    if (getShipAtPosition(targetPosition, this.state.ships)) {
+      return { success: false, error: 'Position occupied' };
+    }
+    
+    const shipValue = player.scrapyard.splice(shipIndex, 1)[0];
+    
+    const newShip: Ship = {
+      id: generateId('ship-'),
+      ownerId: playerId,
+      pipValue: shipValue,
+      position: targetPosition,
+      hasMovedThisTurn: false,
+      hasUsedAbilityThisTurn: false,
+      isCarried: false,
+      carriedById: null,
+    };
+    
+    this.state.ships.push(newShip);
+    this.state.updatedAt = new Date(); 
+    
+    return { success: true, data: this.getState() };
+  }
+
   // ===========================================================================
   // ACTION: MOVE
   // ===========================================================================
@@ -626,8 +685,15 @@ selectAdvanceCard(playerId: string, cardId: string, discardCommandId?: string): 
     timestamp: new Date(),
   });
   
+  // Reset turn earning flags after card is selected
+  player.cubesPlacedThisTurn = 0;
+  player.achievedBreakthroughThisTurn = false;
   return { success: true, data: this.getState() };
 }
+
+// ===========================================================================
+// CARD EXECUTION
+// ===========================================================================
 
 /**
  * Execute a Gambit card's immediate effect
@@ -649,8 +715,14 @@ private executeGambitEffect(card: AdvanceCard, player: Player): void {
       break;
       
     case 'MOMENTUM':
-      // +2 actions for current turn
+      // +2 actions for bonus turn
       player.actionsRemaining += 2;
+      // Reset ship turn flags for this bonus turn
+      const playerShips = this.state.ships.filter(s => s.ownerId === player.id);
+      for (const ship of playerShips) {
+        ship.hasMovedThisTurn = false;
+        ship.hasUsedAbilityThisTurn = false;
+      }
       break;
       
     case 'RELOCATION':
@@ -660,9 +732,7 @@ private executeGambitEffect(card: AdvanceCard, player: Player): void {
       break;
       
     case 'REORGANIZATION':
-      // Re-roll ships, deploy free - requires UI flow
-      // TODO: This needs UI flow - for now log warning
-      console.warn('Reorganization effect requires UI flow - not yet implemented');
+      // Handled via UI flow in gameStore - no immediate effect
       break;
       
     case 'SABOTAGE':
@@ -675,6 +745,40 @@ private executeGambitEffect(card: AdvanceCard, player: Player): void {
       console.warn(`Unknown gambit effect: ${baseId}`);
   }
 }
+
+// ===========================================================================
+// REORGANIZATION
+// ===========================================================================
+
+reorganizeShips(playerId: string, shipIds: string[], scrapyardIndices: number[]): Result<GameState> {
+  const player = getPlayer(this.state, playerId);
+  if (!player) {
+    return { success: false, error: 'Player not found' };
+  }
+
+  // Re-roll deployed ships - move to scrapyard with new values
+  for (const shipId of shipIds) {
+    const shipIndex = this.state.ships.findIndex(s => s.id === shipId && s.ownerId === playerId);
+    if (shipIndex !== -1) {
+      // Remove from board
+      this.state.ships.splice(shipIndex, 1);
+      // Add new value to scrapyard
+      const newValue = Math.floor(Math.random() * 6) + 1;
+      player.scrapyard.push(newValue);
+    }
+  }
+
+  // Re-roll scrapyard ships in place
+  for (const index of scrapyardIndices) {
+    if (index >= 0 && index < player.scrapyard.length) {
+      player.scrapyard[index] = Math.floor(Math.random() * 6) + 1;
+    }
+  }
+
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState() };
+}
+
 }
 
 // =============================================================================

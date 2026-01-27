@@ -15,6 +15,7 @@ import { Card } from './components/Card';
 import { CardDetailModal } from './components/CardDetailModal';
 import { useState } from 'react';
 import { AdvanceCard } from '@quantum/types';
+import { ReorganizationModal } from './components/ReorganizationModal';
 
 function App() {
   const { 
@@ -132,6 +133,8 @@ function App() {
         card={previewCard}
         onClose={() => setPreviewCard(null)}
       />
+
+      <ReorganizationModal />
     </div>
   );
 }

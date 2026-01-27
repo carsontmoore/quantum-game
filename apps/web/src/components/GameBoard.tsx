@@ -54,6 +54,7 @@ export function GameBoard() {
 
   // Handle cell click
   const handleCellClick = (x: number, y: number) => {
+     console.log('Cell clicked:', { x, y, isDeployMode, selectedScrapyardIndex, isHighlighted: isHighlighted(x, y) });
     if (!isHighlighted(x, y)) return;
     // Handle Deploy Mode
     if (isDeployMode && selectedScrapyardIndex !== null) {

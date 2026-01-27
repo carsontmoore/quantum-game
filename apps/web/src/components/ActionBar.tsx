@@ -9,7 +9,7 @@ import clsx from 'clsx';
 export function ActionBar() {
   const gameState = useGameStore(state => state.gameState);
   const currentPlayer = useGameStore(selectCurrentPlayer);
-  const { availableActions, selectedShipId, performAction, endTurn, isLoading, isDeployMode, selectedScrapyardIndex, enterDeployMode, exitDeployMode } = useGameStore();
+  const { availableActions, selectedShipId, performAction, endTurn, isLoading, isDeployMode, selectedScrapyardIndex, enterDeployMode, exitDeployMode, pendingGambitEffect, isFreeDeployMode } = useGameStore();
 
   if (!gameState || !currentPlayer) return null;
 
@@ -70,6 +70,32 @@ export function ActionBar() {
           >
             🚀 Deploy
           </button>
+          {/* Done Deploying */}
+          {pendingGambitEffect?.type === 'REORGANIZATION' && isFreeDeployMode && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-slate-400">Deploy:</span>
+              {currentPlayer?.scrapyard.map((value, index) => (
+                <button
+                  key={index}
+                  onClick={() => useGameStore.getState().setSelectedScrapyardIndex(index)}
+                  className={clsx(
+                    'w-10 h-10 rounded font-bold',
+                    selectedScrapyardIndex === index
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                  )}
+                >
+                  {value}
+                </button>
+              ))}
+              <button
+                onClick={() => useGameStore.getState().finishReorganizationDeploy()}
+                className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg font-medium"
+              >
+                Done Deploying
+              </button>
+            </div>
+          )}
 
           {/* Reconfigure */}
           <button

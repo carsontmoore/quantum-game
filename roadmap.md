@@ -41,6 +41,14 @@
 - [ ] Add card specific mechanic description to CardSelectionModal when card is highlighted
 - [ ] Ensure scrapyard is visible as part of command sheet (for both player and AI)
 - [ ] Add logic to account for Entaglement condition
+- [ ] Consolidate research buttons / Make clear user notification of research action 
+- [ ] Handle Expansion card selection / free deploy when there are no valid orbital positions 
+  - Prevent Expansion card choice (need conditional) if all 5 ships currently in orbit
+- [ ] Double check AI turn flow
+  - Attack resolution modal appeared on AI turn prior to ships moving into valid attack position
+    - Verify attack position conditional for players - AI was able to initiate attack without ships moving and/or being in a valid (adjacent) orbital position for attack
+- Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
+- [ ] Momentum bug needs to be edited to allow a ship to move a second time / (re)use an ability
 
 ---
 

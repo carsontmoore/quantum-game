@@ -49,7 +49,8 @@ export function CardSelectionModal({ isOpen, onSelect, onClose }: CardSelectionM
               🎴 Select an Advance Card
             </h2>
             <p className="text-slate-400 text-sm">
-              You placed a quantum cube! Choose a card from the market.
+              {/* You placed a quantum cube! Choose a card from the market. */}
+              Choose an Advance Card!
             </p>
           </div>
 
@@ -118,7 +119,7 @@ export function CardSelectionModal({ isOpen, onSelect, onClose }: CardSelectionM
               </p>
             ) : (
               <p className="text-slate-400 text-xs">
-                <span className="text-purple-300 font-medium">Gambit cards</span> provide powerful one-time effects. Play them immediately or save for later.
+                <span className="text-purple-300 font-medium">Gambit cards</span> provide powerful one-time effects that trigger immediately. 
               </p>
             )}
           </div>

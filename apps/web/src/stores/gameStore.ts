@@ -6,7 +6,7 @@
 
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
-import { ActionType } from '@quantum/types';
+import { ActionType , CardType} from '@quantum/types';
 import type { 
   GameState, 
   AvailableActions, 
@@ -20,9 +20,11 @@ import {
   GameEngine, 
   createGame, 
   MAP_CONFIGS,
+  getOrbitalPositions,
   type CreateGameOptions,
 } from '@quantum/game-engine';
 import { createAI } from '@quantum/ai';
+import { valid } from 'node-html-parser';
 
 // =============================================================================
 // TYPES
@@ -49,7 +51,14 @@ interface GameStore {
     loserNewShipValue: number | null;  // The re-rolled value for scrapyard
     loserPlayerId: string | null;
   } | null;
-  
+  pendingGambitEffect: {
+    type: string; // 'EXPANSION' | 'REORGANIZATION' | 'RELOCATION' | 'SABOTAGE'
+    data?: any;
+  } | null;
+  isFreeDeployMode: boolean;
+  showReorganizationModal: boolean;
+  reorganizationPhase: 'reroll' | 'deploy' | null;
+
   // Engine (for local games)
   engine: GameEngine | null;
   
@@ -75,7 +84,14 @@ interface GameStore {
   openCardSelection: (count?: number) => void;
   closeCardSelection: () => void;
   selectCard: (card: AdvanceCard) => void;
-  
+  // Action to clear Gambit effect
+  clearPendingGambitEffect: () => void;
+  // Action to show reorganization modal
+  executeReorganization: (shipIds: string[], scrapyardIndices: number[]) => void;
+  finishReorganizationDeploy: () => void;
+  setSelectedScrapyardIndex: (index: number) => void;
+
+
   // AI
   processAITurn: () => Promise<void>;
   
@@ -116,6 +132,10 @@ export const useGameStore = create<GameStore>()(
     isDeployMode: false,
     selectedScrapyardIndex: 0,
     lastCombatResult: null,
+    pendingGambitEffect: null,
+    isFreeDeployMode: false,
+    showReorganizationModal: false,
+    reorganizationPhase: null,
     
     // Create a new local game
     createLocalGame: (options) => {
@@ -190,12 +210,57 @@ export const useGameStore = create<GameStore>()(
           case 'reconfigure':
             result = engine.reconfigure(playerId, action.shipId);
             break;
+
           case 'deploy':
-            result = engine.deploy(playerId, action.shipIndex, action.targetPosition);
+            const { isFreeDeployMode, pendingGambitEffect } = get();
+  
+            if (isFreeDeployMode && (pendingGambitEffect?.type === 'EXPANSION' || pendingGambitEffect?.type === 'REORGANIZATION')) {
+              result = engine.freeDeploy(playerId, action.shipIndex, action.targetPosition);
+              if (result.success) {
+                engine.resetTurnFlags(playerId);
+                // get().clearPendingGambitEffect();
+                // get().exitDeployMode();
+                const updatedPlayer = result.data.players.find(p => p.id === playerId);
+
+                if (pendingGambitEffect?.type === 'REORGANIZATION' && updatedPlayer && updatedPlayer.scrapyard.length > 0) {
+                  // More ships to deploy - recalculate valid positions and stay in deploy mode
+                  const validDeployPositions: Position[] = [];
+                  for (const tile of result.data.tiles) {
+                    if (tile.quantumCube === playerId) {
+                      const orbitals = getOrbitalPositions(tile);
+                      for (const pos of orbitals) {
+                        const occupied = result.data.ships.some(
+                          s => s.position?.x === pos.x && s.position?.y === pos.y
+                        );
+                        if (!occupied) {
+                          validDeployPositions.push(pos);
+                        }
+                      }
+                    }
+                  }
+                  set({
+                    highlightedPositions: validDeployPositions,
+                    selectedScrapyardIndex: 0,
+                    isDeployMode: true,
+                  });
+                } else {
+                  // Expansion complete or Reorganization deploys complete
+                  get().clearPendingGambitEffect();
+                  get().exitDeployMode();
+                  if (pendingGambitEffect?.type === 'REORGANIZATION') {
+                    set({ reorganizationPhase: null });
+                  }
+                }
+              }
+            } else {
+              result = engine.deploy(playerId, action.shipIndex, action.targetPosition);
+            }
             break;
+
           case 'move':
             result = engine.move(playerId, action.shipId, action.targetPosition);
             break;
+
           case 'attack':
             // Get defender's owner before the attack resolves
             const targetShip = gameState.ships.find(
@@ -280,7 +345,7 @@ selectCard: (card: AdvanceCard) => {
 
   // Use engine to handle card selection (includes Gambit effects)
   const result = engine.selectAdvanceCard(playerId, card.id);
-  
+
   if (!result.success) {
     set({ error: result.error });
     return;
@@ -289,9 +354,61 @@ selectCard: (card: AdvanceCard) => {
   // Reset the cubes/breakthrough flags since we're consuming them
   const updatedState = result.data;
   const updatedPlayer = updatedState.players.find(p => p.id === playerId);
-  if (updatedPlayer) {
-    updatedPlayer.cubesPlacedThisTurn = 0;
-    updatedPlayer.achievedBreakthroughThisTurn = false;
+
+  // Handle Gambit Effects
+  const baseCardId = card.id.toString().split('-')[0].toUpperCase();
+
+  if (card.type === CardType.GAMBIT) {
+    switch (baseCardId) {
+      case 'EXPANSION' :
+        // Calculate valid orbital positions directly 
+        const validDeployPositions: Position[] = [];
+        for (const tile of updatedState.tiles) {
+          if (tile.quantumCube === playerId) {
+            const orbitals = getOrbitalPositions(tile);
+            for (const pos of orbitals) {
+              const occupied = updatedState.ships.some(
+                s => s.position?.x === pos.x && s.position?.y === pos.y
+              );
+              if (!occupied) {
+                validDeployPositions.push(pos);
+              }
+            }
+          }
+        }
+        console.log('Expansion valid deploy positions:', validDeployPositions);
+        
+        set({
+          gameState: updatedState,
+          pendingCardSelections: pendingCardSelections - 1,
+          showCardSelection: false,
+          pendingGambitEffect: {
+            type: 'EXPANSION',
+            data: { scrapyardIndex: updatedPlayer!.scrapyard.length - 1 }
+          }
+        });
+
+          get().enterDeployMode(updatedPlayer!.scrapyard.length - 1, validDeployPositions);
+          return; // Don't end turn yet
+      
+      case 'REORGANIZATION' :
+        set({
+          gameState: updatedState,
+          pendingCardSelections: pendingCardSelections - 1,
+          showCardSelection: false,
+          showReorganizationModal: true,
+          reorganizationPhase: 'reroll',
+        });
+        return;
+
+      case 'RELOCATION' :
+        // TODO: future implementation
+        break;
+
+      case 'SABOTAGE' :
+        // TODO: future implementation
+        break;
+    }
   }
 
   const newPendingCount = pendingCardSelections - 1;
@@ -322,12 +439,27 @@ selectCard: (card: AdvanceCard) => {
 },
 
     // Enter Deploy mode
-    enterDeployMode: (scrapyardIndex = 0) => {
+    enterDeployMode: (scrapyardIndex = 0, freeDeployPositions?: Position[]) => {
       const { availableActions } = get();
+
+      // If free deploy positions provided, use those (for Expansion)
+      if (freeDeployPositions && freeDeployPositions.length > 0) {
+        set({
+          isDeployMode: true,
+          isFreeDeployMode: true,
+          selectedScrapyardIndex: scrapyardIndex,
+          selectedShipId: null,
+          highlightedPositions: freeDeployPositions,
+        });
+        return;
+      }
+
+      // Normal deploy - check avaiableActions
       if (!availableActions || availableActions.canDeploy.length === 0) return;
   
       set({
         isDeployMode: true,
+        isFreeDeployMode: false,
         selectedScrapyardIndex: scrapyardIndex,
         selectedShipId: null,
         highlightedPositions: availableActions.canDeploy,
@@ -337,9 +469,80 @@ selectCard: (card: AdvanceCard) => {
     exitDeployMode: () => {
       set({
         isDeployMode: false,
+        isFreeDeployMode: false,
         selectedScrapyardIndex: 0,
         highlightedPositions: [],
       });
+    },
+    // Clear Gambit Effect
+    clearPendingGambitEffect: () => {
+      set({
+        pendingGambitEffect: null,
+      });
+    },
+    // Set Selected Scrapyard Ship
+    setSelectedScrapyardIndex: (index) => {
+      set({
+        selectedScrapyardIndex: index,
+      });
+    },
+    // Execute Reorganization
+    executeReorganization: (shipIds, scrapyardIndices) => {
+      const { engine, gameState } = get();
+      if (!engine || !gameState) return;
+
+      const playerId = gameState.currentPlayerId;
+      const result = engine.reorganizeShips(playerId, shipIds, scrapyardIndices);
+
+      if (result.success) {
+        const updatedState = result.data;
+        const player = updatedState.players.find(p => p.id === playerId);
+
+        // If player has ships in scrapyard, enter free deploy phase
+        if (player && player.scrapyard.length > 0) {
+          // Calculate valid deploy positions
+          const validDeployPositions: Position[] = [];
+          for (const tile of updatedState.tiles) {
+            if (tile.quantumCube === playerId) {
+              const orbitals = getOrbitalPositions(tile);
+              for (const pos of orbitals) {
+                const occupied = updatedState.ships.some(
+                  s => s.position?.x === pos.x && s.position?.y === pos.y
+                );
+                if (!occupied) {
+                  validDeployPositions.push(pos);
+                }
+              }
+            }
+          }
+
+          set({
+            gameState: updatedState,
+            showReorganizationModal: false,
+            reorganizationPhase: 'deploy',
+            pendingGambitEffect: { type: 'REORGANIZATION', data: {} },
+            isDeployMode: true,
+            isFreeDeployMode: true,
+            selectedScrapyardIndex: 0,
+            highlightedPositions: validDeployPositions,
+          });
+        } else {
+          // No ships to deploy, end reorganization
+          set({
+            gameState: updatedState,
+            showReorganizationModal: false,
+            reorganizationPhase: null,
+          });
+          get().endTurn();
+        }
+      }
+    },
+
+    finishReorganizationDeploy: () => {
+      get().clearPendingGambitEffect();
+      get().exitDeployMode();
+      set({ reorganizationPhase: null });
+      get().endTurn();
     },
 
     // End turn

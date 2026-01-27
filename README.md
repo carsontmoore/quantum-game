@@ -38,9 +38,10 @@ quantum-game/
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | React 19, TypeScript, Vite, Tailwind CSS |
+| Frontend | React 18, TypeScript, Vite, Tailwind CSS |
 | State | Zustand |
-| Backend | Node.js, Hono |
+| Monorepo | npm workspaces |
+| Backend | Node.js, Hono (planned) |
 | Database | MongoDB |
 | PWA | vite-plugin-pwa |
 
@@ -48,15 +49,15 @@ quantum-game/
 
 ### Prerequisites
 
-- Node.js 20+
-- npm 10+
+- Node.js 18+
+- npm 9+
 - MongoDB (local or Atlas)
 
 ### Installation
 
 ```bash
-# Clone or unzip the project
-cd quantum-game
+# Clone the repo
+git clone https://github.com/
 
 # Install dependencies
 npm install
@@ -89,18 +90,48 @@ JWT_SECRET=your-secret-key
 CORS_ORIGIN=http://localhost:5173
 ```
 
-## 🎯 MVP Features
+## 🎯 Current Features
 
 - [x] Core game engine with full rule implementation
-- [x] Local hot-seat multiplayer
-- [x] AI opponents (Easy, Medium, Hard)
+- [x] Local play vs AI opponent
+- [x] AI opponents (Easy, Medium, Hard difficulty)
 - [x] Interactive game board with ship selection
 - [x] Turn management and action validation
-- [x] Research and advance card systems
+- [x] Combat resolution with visual feedback
+- [x] Research and breakthrough system
+- [x] Advance card system (Command + Gambit cards)
+- [x] Card selection modal and market display
+- [x] Deploy ships from scrapyard
+- [ ] Multiple cubes per planet (in progress)
+- [ ] Ship ability UI improvements
 - [ ] Real-time online multiplayer
 - [ ] Async turn-based play
-- [ ] User accounts and statistics
-- [ ] Map editor
+
+## 🧪 Development
+
+### Key Files
+
+- `packages/game-engine/src/index.ts` - Main game engine class
+- `packages/game-engine/src/cards.ts` - Card definitions
+- `apps/web/src/stores/gameStore.ts` - Client state management
+- `apps/web/src/components/` - React UI components
+
+### TypeScript Notes
+
+See [LEARNINGS.md](./LEARNINGS.md) for documented patterns including:
+- Type vs value imports for enums
+- React key uniqueness for card instances
+- Action log slicing for AI turn detection
+
+### Commit Convention
+```
+feat: new feature
+fix: bug fix
+refactor: code change that neither fixes nor adds
+docs: documentation only
+test: adding or updating tests
+chore: maintenance tasks
+```
 
 ## 📁 Project Structure
 
