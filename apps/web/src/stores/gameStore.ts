@@ -62,6 +62,8 @@ interface GameStore {
   relocationPhase: 'selectCube' | 'selectDestination' | null;
   selectedRelocationCube: { tileId: string; playerId: string } | null;
   highlightedTiles: string[];
+  showSabotageModal: boolean;
+  sabotageDiscards: Record<string, string>; // playerId -> cardId already discarded
 
   // Engine (for local games)
   engine: GameEngine | null;
@@ -98,6 +100,8 @@ interface GameStore {
   selectRelocationCube: (tileId: string, cubePlayerId: string) => void;
   executeRelocation: (destTileId: string) => void;
   cancelRelocation: () => void;
+  // Action to show sabotage modal
+  executeSabotageDiscard: (playerId: string, cardId: string) => void;
 
 
   // AI
@@ -148,6 +152,8 @@ export const useGameStore = create<GameStore>()(
     relocationPhase: null,
     selectedRelocationCube: null,
     highlightedTiles: [],
+    showSabotageModal: false,
+    sabotageDiscards: {},
 
     // Create a new local game
     createLocalGame: (options) => {
@@ -436,8 +442,41 @@ selectCard: (card: AdvanceCard) => {
         return;
 
       case 'SABOTAGE' :
-        // TODO: future implementation
-        break;
+        const currentId = gameState.currentPlayerId;
+        const opponentPlayers = updatedState.players.filter(p => p.id !== currentId);
+  
+        // AI opponents auto-discard
+        for (const opponent of opponentPlayers) {
+          if (opponent.type === 'ai' && opponent.activeCommandCards.length > 0) {
+            const cardToDiscard = opponent.activeCommandCards[0];
+            engine.sabotageDiscard(opponent.id, cardToDiscard.id);
+          }
+        }
+
+        // Check if any human opponents need to discard
+        const humansNeedingDiscard = updatedState.players.filter(p => 
+          p.id !== currentId && 
+          p.type === 'human' && 
+          p.activeCommandCards.length > 0
+        );
+
+        if (humansNeedingDiscard.length === 0) {
+          set({
+            gameState: engine.getState(),
+            pendingCardSelections: pendingCardSelections - 1,
+            showCardSelection: false,
+          });
+          get().endTurn();
+        } else {
+          set({
+            gameState: engine.getState(),
+            pendingCardSelections: pendingCardSelections - 1,
+            showCardSelection: false,
+            showSabotageModal: true,
+            sabotageDiscards: {},
+          });
+        }
+        return;
     }
   }
 
@@ -620,6 +659,42 @@ selectCard: (card: AdvanceCard) => {
         highlightedTiles: [],
       });
       get().endTurn();
+    },
+
+    // Sabotage
+    executeSabotageDiscard: (playerId, cardId) => {
+      const { engine, gameState, sabotageDiscards } = get();
+      if (!engine || !gameState) return;
+
+      const result = engine.sabotageDiscard(playerId, cardId);
+      
+      if (!result.success) return;
+
+      const newDiscards = { ...sabotageDiscards, [playerId]: cardId };
+      const currentPlayerId = gameState.currentPlayerId;
+      
+      // Find human opponents who still need to discard
+      const pendingHumans = gameState.players.filter(p => 
+        p.id !== currentPlayerId && 
+        p.type === 'human' &&
+        p.activeCommandCards.length > 0 &&
+        !newDiscards[p.id]
+      );
+
+      if (pendingHumans.length === 0) {
+        // All done
+        set({
+          gameState: result.data,
+          showSabotageModal: false,
+          sabotageDiscards: {},
+        });
+        get().endTurn();
+      } else {
+        set({
+          gameState: result.data,
+          sabotageDiscards: newDiscards,
+        });
+      }
     },
 
     // End turn

@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { AdvanceCard } from '@quantum/types';
 import { ReorganizationModal } from './components/ReorganizationModal';
 import { RelocationModal } from './components/RelocationModal';
+import { SabotageModal } from './components/SabotageModal';
 
 function App() {
   const { 
@@ -137,6 +138,7 @@ function App() {
 
       <ReorganizationModal />
       <RelocationModal />
+      <SabotageModal />
     </div>
   );
 }

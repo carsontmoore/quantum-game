@@ -734,9 +734,7 @@ private executeGambitEffect(card: AdvanceCard, player: Player): void {
       break;
       
     case 'SABOTAGE':
-      // Force opponents to discard - requires opponent selection
-      // TODO: This needs UI flow - for now log warning
-      console.warn('Sabotage effect requires opponent selection - not yet implemented');
+      // Handled via UI flow in gameStore - no immediate effect
       break;
       
     default:
@@ -810,6 +808,27 @@ relocateCube(playerId: string, sourceTileId: string, destTileId: string): Result
   destTile.quantumCube = cubeOwnerId;
   
   // Update the cube owner's remaining count (no change - just moved)
+  
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState() };
+}
+
+// ===========================================================================
+// SABOTAGE
+// ===========================================================================
+
+sabotageDiscard(playerId: string, cardId: string): Result<GameState> {
+  const player = getPlayer(this.state, playerId);
+  if (!player) {
+    return { success: false, error: 'Player not found' };
+  }
+
+  const cardIndex = player.activeCommandCards.findIndex(c => c.id === cardId);
+  if (cardIndex === -1) {
+    return { success: false, error: 'Card not found in player hand' };
+  }
+  const [discardedCard] = player.activeCommandCards.splice(cardIndex, 1);
+  this.state.cards.commandDiscard.push(discardedCard);
   
   this.state.updatedAt = new Date();
   return { success: true, data: this.getState() };
