@@ -13,10 +13,15 @@
 - [x] Verified 2/3/4 player map rendering
 - [x] Basic ship movement working
 - [x] AI takes turns and can attack
+- [x] AI turn loop debugging (appears stuck in some cases)
+- [x] Deploy from scrapyard UI (blocking - core mechanic)
+- [x] Advance card selection flow (when earned via research/dominance)
+- [x] BUG : Deploy phase during Reorganization ends after first deployment, even with additional ship deploy options available
 
 ### In Progress
-- [x] Deploy from scrapyard UI (blocking - core mechanic)
-- [x] AI turn loop debugging (appears stuck in some cases)
+- [ ] Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
+- [ ] Handle Expansion card selection / free deploy when there are no valid orbital positions 
+  - Prevent Expansion card choice (need conditional) if all 5 ships currently in orbit
 
 ### Remaining MVP Tasks
 - [ ] Ship ability UI triggers:
@@ -26,7 +31,7 @@
   - Frigate (Modify) - change pip to 3 or 5
   - Interceptor (Maneuver) - diagonal movement (passive, may already work)
   - Scout (Free Reconfigure) - reroll without action cost
-- [ ] Advance card selection flow (when earned via research/dominance)
+
 - [ ] Combat feedback (show dice rolls, animations)
 - [ ] AI turn visibility (display actions taken)
 - [ ] Complete UI polish and testing
@@ -42,17 +47,16 @@
 - [ ] Ensure scrapyard is visible as part of command sheet (for both player and AI)
 - [ ] Add logic to account for Entaglement condition
 - [ ] Consolidate research buttons / Make clear user notification of research action 
-- [ ] Handle Expansion card selection / free deploy when there are no valid orbital positions 
-  - Prevent Expansion card choice (need conditional) if all 5 ships currently in orbit
+
 - [ ] Double check AI turn flow
   - Attack resolution modal appeared on AI turn prior to ships moving into valid attack position
     - Verify attack position conditional for players - AI was able to initiate attack without ships moving and/or being in a valid (adjacent) orbital position for attack
-- Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
-- [ ] Momentum bug needs to be edited to allow a ship to move a second time / (re)use an ability
+
+- [ ] Momentum needs to be tested to allow a ship (re)use an ability
 - [ ] Advance card UI ? Logos / Images?
   - What are the numbers on each card currently representing ?
 - [ ] Reorganization modal needs to inform user which ships (locations) are being chosen for reconfigure (specifically important in the case of duplicate ship types - user needs to know which scout / 6 is being removed and which stays in orbit for example)
-- [ ] BUG : Deploy phase during Reorganization ends after first deployment, even with additional ship deploy options available
+
 - [ ] Handle user choosing 'SKIP'  - reference rules - is user allowed to defer taking a card until a later turn? Do they lose the ability to gain a card if choosing skip ?
 - [ ] Tests for playing cards in combination (a key feature of strategy in Quantum)
 - [ ] BUG:  Deploy button active in ActionBar despite user actions being 0. Clicking does nothing but button should not be enabled if action count is zero (unless reactivated due to advance card effect)
