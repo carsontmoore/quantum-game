@@ -719,19 +719,22 @@ endTurn: async () => {
   
   // No cards to select, proceed with ending turn
   const result = engine.endTurn(gameState.currentPlayerId);
+
   
   if (result.success) {
-    const newState = engine.getState();
+    const newState = result.data;
+    engine.startTurn(newState.currentPlayerId);
+    const stateAfterTurnStart = engine.getState();
     set({
-      gameState: newState,
+      gameState: stateAfterTurnStart,
       availableActions: engine.getAvailableActions(),
       selectedShipId: null,
       highlightedPositions: [],
     });
     
     // Check if next player is AI
-    const nextPlayer = newState.players.find(p => p.id === newState.currentPlayerId);
-    if (nextPlayer?.type === 'ai' && newState.status === 'in_progress') {
+    const nextPlayer = stateAfterTurnStart.players.find(p => p.id === stateAfterTurnStart.currentPlayerId);
+    if (nextPlayer?.type === 'ai' && stateAfterTurnStart.status === 'in_progress') {
       // Small delay before AI turn
       setTimeout(() => get().processAITurn(), 500);
     }

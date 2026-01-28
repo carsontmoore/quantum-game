@@ -84,6 +84,13 @@ export class GameEngine {
     this.onEvent = options.onEvent;
   }
   
+  // Private Helpers
+  private hasCommandCard(player: Player, cardName: string): boolean {
+    return player.activeCommandCards.some(
+      c => c.id.toString().split('-')[0].toLowerCase() === cardName.toLowerCase()
+    );
+  }
+
   // ===========================================================================
   // STATE ACCESS
   // ===========================================================================
@@ -121,6 +128,38 @@ export class GameEngine {
     player.achievedBreakthroughThisTurn = false;
   }
 }
+
+  // ===========================================================================
+  // Start Turn
+  // ===========================================================================
+
+  startTurn(playerId: string): Result<GameState> {
+    const player = getPlayer(this.state, playerId);
+    if (!player) {
+      return { success: false, error: 'Player not found' };
+    }
+
+    // Brilliant: +2 research at turn start
+    if (this.hasCommandCard(player, 'brilliant')) {
+      player.researchCounter += 2;
+    
+      // Check for breakthrough
+      if (player.researchCounter >= 6) {
+        player.researchCounter -= 6;
+        player.achievedBreakthroughThisTurn = true;
+      }
+    }
+
+    // Curious: +1 free peaceful move (tracked separately)
+    if (this.hasCommandCard(player, 'curious')) {
+      player.bonusMoves = 1;
+    } else {
+      player.bonusMoves = 0;
+    }
+
+    this.state.updatedAt = new Date();
+    return { success: true, data: this.getState() };
+  }
 
   // ===========================================================================
   // ACTION: RECONFIGURE
@@ -283,7 +322,16 @@ export class GameEngine {
     ship.hasMovedThisTurn = true;
     
     const player = getPlayer(this.state, playerId)!;
-    player.actionsRemaining -= 1;
+    const enemyAtDestination = getShipAtPosition(targetPosition, this.state.ships);
+    const isPeacefulMove = !enemyAtDestination || enemyAtDestination.ownerId === playerId;
+    
+    // Use bonus move if available and move is peaceful
+    if (isPeacefulMove && player.bonusMoves > 0) {
+      player.bonusMoves -= 1;
+      // Don't deduct action 
+    } else {
+      player.actionsRemaining -= 1;
+    }
     
     const action: MoveAction = {
       type: ActionType.MOVE,

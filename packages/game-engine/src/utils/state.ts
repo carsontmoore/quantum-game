@@ -216,6 +216,7 @@ export function createGame(options: CreateGameOptions): GameState {
       actionsRemaining: 3,
       cubesPlacedThisTurn: 0,
       achievedBreakthroughThisTurn: false,
+      bonusMoves: 0,
     };
   });
   

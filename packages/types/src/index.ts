@@ -263,6 +263,7 @@ export interface Player {
   actionsRemaining: number;        // Starts at 3
   cubesPlacedThisTurn: number;     // For advance card rewards
   achievedBreakthroughThisTurn: boolean;
+  bonusMoves: number;
 }
 
 // =============================================================================

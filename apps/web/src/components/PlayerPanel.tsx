@@ -58,6 +58,9 @@ export function PlayerPanel() {
           <div className="bg-slate-800/50 rounded-lg p-2">
             <div className="text-2xl font-bold text-cyan-400">
               {currentPlayer.actionsRemaining}
+              {player.bonusMoves > 0 && (
+                <div className="text-green-400 text-sm">🚶 Bonus move available</div>
+          )}
             </div>
             <div className="text-xs text-slate-400">Actions</div>
           </div>

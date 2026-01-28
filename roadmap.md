@@ -56,8 +56,10 @@
 - [ ] Handle user choosing 'SKIP'  - reference rules - is user allowed to defer taking a card until a later turn? Do they lose the ability to gain a card if choosing skip ?
 - [ ] Tests for playing cards in combination (a key feature of strategy in Quantum)
 - [ ] BUG:  Deploy button active in ActionBar despite user actions being 0. Clicking does nothing but button should not be enabled if action count is zero (unless reactivated due to advance card effect)
-
-
+- [ ] Command sheets should be able to be selected, such that the player can reference it for any other player at any point in the turn / game
+- [ ] Double check that ship abilities are functioning
+  - Does Frigate have the ability to modify ?
+- [ ] Verify rules that players are unable to skip research gain, and the ensure this is captured in the game mechanics
 ---
 
 ## Phase 2 - Multiplayer & Persistence
