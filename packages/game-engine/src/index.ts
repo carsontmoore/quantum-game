@@ -139,6 +139,10 @@ export class GameEngine {
       return { success: false, error: 'Player not found' };
     }
 
+    // Reset turn flags
+    player.hasUsedFlexibleThiisTurn = false;
+    player.bonusMoves = 0;
+
     // Brilliant: +2 research at turn start
     if (this.hasCommandCard(player, 'brilliant')) {
       player.researchCounter += 2;
@@ -153,10 +157,9 @@ export class GameEngine {
     // Curious: +1 free peaceful move (tracked separately)
     if (this.hasCommandCard(player, 'curious')) {
       player.bonusMoves = 1;
-    } else {
-      player.bonusMoves = 0;
-    }
+    } 
 
+    
     this.state.updatedAt = new Date();
     return { success: true, data: this.getState() };
   }
@@ -232,7 +235,11 @@ export class GameEngine {
     };
     
     this.state.ships.push(newShip);
-    player.actionsRemaining -= 1;
+    const hasEager = this.hasCommandCard(player, 'eager');
+    if (!hasEager) {
+      player.actionsRemaining -= 1;
+    }
+    
     
     const action: DeployAction = {
       type: ActionType.DEPLOY,
@@ -468,16 +475,12 @@ export class GameEngine {
     const player = getPlayer(this.state, playerId)!;
     const tile = getTile(this.state, tileId)!;
     
-    // Check for Industrious card
-    const hasIndustrious = player.activeCommandCards.some(
-      c => c.name === 'Industrious' || c.name === 'Quantum Mastery'
-    );
-    const actionCost = hasIndustrious ? 1 : 2;
+
     
     // Place cube
     tile.quantumCube = playerId;
     player.quantumCubesRemaining -= 1;
-    player.actionsRemaining -= actionCost;
+    player.actionsRemaining -= 1;
     player.cubesPlacedThisTurn += 1;
     
     const action: ConstructAction = {
@@ -532,11 +535,15 @@ export class GameEngine {
     // Check for Brilliant card
     const hasBrilliant = player.activeCommandCards.some(c => c.name === 'Brilliant');
     const increment = hasBrilliant ? 2 : 1;
+
+    // Check for Precocious card
+    const hasPrecocious = this.hasCommandCard(player, 'precocious');
+    const breakthroughThreshold = hasPrecocious ? 4 : 6;
     
     let newValue = previousValue + increment;
     let breakthrough = false;
     
-    if (newValue >= 6) {
+    if (newValue >= breakthroughThreshold) {
       breakthrough = true;
       player.achievedBreakthroughThisTurn = true;
       newValue = 1; // Reset after breakthrough
@@ -878,6 +885,40 @@ sabotageDiscard(playerId: string, cardId: string): Result<GameState> {
   const [discardedCard] = player.activeCommandCards.splice(cardIndex, 1);
   this.state.cards.commandDiscard.push(discardedCard);
   
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState() };
+}
+
+// ===========================================================================
+// FLEXIBLE
+// ===========================================================================
+
+flexibleAdjust(playerId: string, shipId: string, direction: 'up' | 'down'): Result<GameState> {
+  const player = getPlayer(this.state, playerId);
+  if (!player) {
+    return { success: false, error: 'Player not found' };
+  }
+
+  if (!this.hasCommandCard(player, 'flexible')) {
+    return { success: false, error: 'Player does not have Flexible card' };
+  }
+
+  if (player.hasUsedFlexibleThisTurn) {
+    return { success: false, error: 'Already used Flexible this turn' };
+  }
+
+  const ship = this.state.ships.find(s => s.id === shipId && s.ownerId === playerId);
+  if (!ship) {
+    return { success: false, error: 'Ship not found' };
+  }
+
+  if (direction === 'up') {
+    ship.pipValue = ship.pipValue >= 6 ? 1 : ship.pipValue + 1;
+  } else {
+    ship.pipValue = ship.pipValue <= 1 ? 6 : ship.pipValue - 1;
+  }
+
+  player.hasUsedFlexibleThisTurn = true;
   this.state.updatedAt = new Date();
   return { success: true, data: this.getState() };
 }

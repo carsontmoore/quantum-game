@@ -114,6 +114,29 @@ export function ActionBar() {
             🎲 Reconfigure
           </button>
 
+          {/* Flexible */}
+          {currentPlayer.activeCommandCards.some(
+            c => c.id.toString().split('-')[0].toLowerCase() === 'flexible'
+          ) && selectedShip && !currentPlayer.hasUsedFlexibleThisTurn && (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => useGameStore.getState().flexibleAdjust(selectedShip.id, 'down')}
+                className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium"
+                title="Decrease pip by 1"
+              >
+                -1
+              </button>
+              <span className="text-xs text-slate-400">Flex</span>
+              <button
+                onClick={() => useGameStore.getState().flexibleAdjust(selectedShip.id, 'up')}
+                className="px-2 py-1 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-sm font-medium"
+                title="Increase pip by 1"
+              >
+                +1
+              </button>
+            </div>
+          )}
+
           {/* Construct */}
           <button
             onClick={() => {

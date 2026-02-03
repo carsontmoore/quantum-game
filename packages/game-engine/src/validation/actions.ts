@@ -33,6 +33,7 @@ import {
   positionKey,
   getPlayerShipsInOrbit,
   getTileCenterPosition,
+  getDiagonalPositions,
 } from '../utils/board.js';
 
 // =============================================================================
@@ -356,15 +357,43 @@ export function validateConstruct(
   
   // Calculate sum of player's ships in orbit
   const shipsInOrbit = getPlayerShipsInOrbit(tile, state.ships, playerId);
-  const shipSum = shipsInOrbit.reduce((sum, ship) => sum + (ship.pipValue as number), 0);
+  let shipSum = shipsInOrbit.reduce((sum, ship) => sum + (ship.pipValue as number), 0);
+
+  // Check for Ingenious card - corner ships count toward construct value
+  const hasIngenious = player.activeCommandCards.some(
+    c => c.id.toString().split('-')[0].toLowerCase() === 'ingenious'
+  );
   
-  if (shipSum !== tile.planetNumber) {
-    return { 
-      valid: false, 
-      reason: `Ships sum to ${shipSum}, need exactly ${tile.planetNumber}` 
-    };
+  if (hasIngenious) {
+    const cornerPositions = getDiagonalPositions(tile.position);
+    const cornerShips = state.ships.filter(s => 
+      s.ownerId === playerId &&
+      s.position && 
+      cornerPositions.some(cp => cp.x === s.position!.x && cp.y === s.position!.y)
+    );
+    const cornerSum = cornerShips.reduce((sum, ship) => sum + (ship.pipValue as number), 0);
+    shipSum += cornerSum;
   }
   
+  // Check for Intelligent card 
+  const hasIntelligent = player.activeCommandCards.some(
+    c => c.id.toString().split('-')[0].toLowerCase() === 'intelligent'
+  );
+  if (hasIntelligent) {
+    if(shipSum < tile.planetNumber - 1 || shipSum > tile.planetNumber + 1) {
+      return {
+        valid: false,
+        reason: `Ships sum to ${shipSum}, need within +/- 1 of ${tile.planetNumber}`
+      };
+    }
+  } else {
+      if (shipSum !== tile.planetNumber) {
+        return { 
+          valid: false, 
+          reason: `Ships sum to ${shipSum}, need exactly ${tile.planetNumber}` 
+        };
+      }
+    }  
   return { valid: true };
 }
 
@@ -496,9 +525,17 @@ export function getAvailableActions(state: GameState): AvailableActions {
     }
     
     // Move / Attack
-    if (!ship.hasMovedThisTurn && player.actionsRemaining >= 1) {
+    const hasAgile = player.activeCommandCards.some(
+      c => c.id.toString().split('-')[0].toLowerCase() === 'agile'
+    );
+    const hasEnergetic = player.activeCommandCards.some(
+      c => c.id.toString().split('-')[0].toLowerCase() === 'energetic'
+    );
+    const bonusRange = hasAgile ? 1 : 0;
+
+    if ((!ship.hasMovedThisTurn || hasEnergetic) && player.actionsRemaining >= 1) {
       const allowDiagonal = ship.pipValue === ShipType.INTERCEPTOR;
-      const reachable = findReachablePositions(ship, state, allowDiagonal);
+      const reachable = findReachablePositions(ship, state, allowDiagonal, bonusRange);
       
       const movePositions: Position[] = [];
       const attackTargets: string[] = [];
@@ -532,6 +569,43 @@ export function getAvailableActions(state: GameState): AvailableActions {
   }
   
   // Deploy positions
+  const hasStealthy = player.activeCommandCards.some(
+    c => c.id.toString().split('-')[0].toLowerCase() === 'stealthy'
+  );
+
+  if (player.scrapyard.length > 0 && player.actionsRemaining >= 1) {
+    if (hasStealthy) {
+      // Stealthy: deploy to any orbital position not adjacent to any ship
+      for (const tile of state.tiles) {
+        const orbitals = getOrbitalPositions(tile);
+        for (const pos of orbitals) {
+          if (!getShipAtPosition(pos, state.ships)) {
+            const hasAdjacentShip = state.ships.some(s => {
+              if (!s.position) return false; 
+              const adjacentPositions = getAdjacentPositions(pos);
+              return adjacentPositions.some(adj => adj.x === s.position!.x && adj.y === s.position!.y);
+          });
+            if (!hasAdjacentShip) {
+              available.canDeploy.push(pos);
+            }
+          }
+        }
+      }
+    } else {
+      // Normal: deploy to orbital positions on planets with player's cube
+      for (const tile of state.tiles) {
+        if (tile.quantumCube === playerId) {
+          const orbitals = getOrbitalPositions(tile);
+          for (const pos of orbitals) {
+            if (!getShipAtPosition(pos, state.ships)) {
+              available.canDeploy.push(pos);
+            }
+          }
+        }       
+      }
+    }
+  }
+
   if (player.scrapyard.length > 0 && player.actionsRemaining >= 1) {
     for (const tile of state.tiles) {
       if (tile.quantumCube === playerId) {

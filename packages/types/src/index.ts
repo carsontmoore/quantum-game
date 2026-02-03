@@ -264,6 +264,7 @@ export interface Player {
   cubesPlacedThisTurn: number;     // For advance card rewards
   achievedBreakthroughThisTurn: boolean;
   bonusMoves: number;
+  hasUsedFlexibleThiisTurn: boolean;
 }
 
 // =============================================================================

@@ -18,6 +18,7 @@
 - [x] Advance card selection flow (when earned via research/dominance)
 - [x] BUG : Deploy phase during Reorganization ends after first deployment, even with additional ship deploy options available
 
+
 ### In Progress
 - [ ] Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
 - [ ] Handle Expansion card selection / free deploy when there are no valid orbital positions 

@@ -22,6 +22,7 @@ import {
   MAP_CONFIGS,
   getOrbitalPositions,
   type CreateGameOptions,
+  getAvailableActions,
 } from '@quantum/game-engine';
 import { createAI } from '@quantum/ai';
 import { valid } from 'node-html-parser';
@@ -102,6 +103,8 @@ interface GameStore {
   cancelRelocation: () => void;
   // Action to show sabotage modal
   executeSabotageDiscard: (playerId: string, cardId: string) => void;
+  // Action for Flexible
+  flexibleAdjust: (shipId: string, direction: 'up' | 'down') => void;
 
 
   // AI
@@ -693,6 +696,22 @@ selectCard: (card: AdvanceCard) => {
         set({
           gameState: result.data,
           sabotageDiscards: newDiscards,
+        });
+      }
+    },
+
+    // Flexible
+    flexibleAdjust: (shipId, direction) => {
+      const { engine, gameState } = get();
+      if (!engine || !gameState) return;
+
+      const playerId = gameState.currentPlayerId;
+      const result = engine.flexibleAdjust(playerId, shipId, direction);
+
+      if (result.success) {
+        set({ 
+          gameState: result.data,
+          availableActions: engine.getAvailableActions(),
         });
       }
     },

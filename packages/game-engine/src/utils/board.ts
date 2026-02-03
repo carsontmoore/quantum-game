@@ -243,13 +243,14 @@ interface PathNode {
 export function findReachablePositions(
   ship: Ship,
   state: GameState,
-  allowDiagonal: boolean = false
+  allowDiagonal: boolean = false,
+  bonusRange = 0
 ): Map<string, Position[]> {
   if (!ship.position) {
     return new Map();
   }
   
-  const maxDistance = ship.pipValue as number;
+  const maxDistance = (ship.pipValue as number) + bonusRange;
   const reachable = new Map<string, Position[]>();
   const visited = new Set<string>();
   
