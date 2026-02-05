@@ -134,6 +134,23 @@ export class AIOpponent {
     return actions[0];
   }
   
+  // AI Combat Process Helper Function
+  async function processAICombatPhases(): Promise<void> {
+  const store = useGameStore.getState();
+  
+  // Loop until combat is resolved
+  while (store.combatPhase !== null) {
+    store.processAICombat();
+    
+    // Small delay between phases for UI visibility
+    await new Promise(resolve => setTimeout(resolve, 300));
+    
+    // Re-fetch state after processing
+    const newState = useGameStore.getState();
+    if (newState.combatPhase === null) break;
+  }
+}
+
   /**
    * Execute a full turn for the AI
    */

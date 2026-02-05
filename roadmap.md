@@ -36,7 +36,7 @@
 - [ ] Combat feedback (show dice rolls, animations)
 - [ ] AI turn visibility (display actions taken)
 - [ ] Complete UI polish and testing
-- [ ] Add re-roll option for players during initial setup
+- [ ] Add re-roll option for players during initial setup (must re-roll all 3 ships)
 - [ ] Show scrapyard / make visible to all players 
 - [ ] Polish and refine UI, add planet styling, formatting, background images, music , styling to the dice and board , animations for battle and cards, and components for each player's command sheet
 - [ ] Modify card deck contents based on number of players in game
