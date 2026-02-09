@@ -373,6 +373,7 @@ if (result.success) {
 - Claude suggested a new type that conflicted with an existing enum
 - Claude used `as any` to bypass type errors
 - Claude did not verify existing implementations before suggesting replacements
+- Claude confused method names across files (finalizeCombat vs resolveFinalize)
 - These errors compounded as session length increased
 
 ### Root Cause

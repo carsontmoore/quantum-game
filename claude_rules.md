@@ -11,16 +11,27 @@
 
 ## Before Any Code Suggestion
 
-Ask yourself:
 - Have I seen the current implementation of what I'm replacing?
 - Have I verified the types I'm using match the codebase?
 - Am I taking a shortcut?
 
 If the answer to the last question is yes, stop and do it correctly.
 
-## When Context Feels Stale
+## When Context Feels Stale or Claude is Uncertain
 
 If the session is long and you're uncertain about codebase state, say:
 "I need to verify [specific thing] before proceeding. Can you share [file/section]?"
 
 Do not guess. Do not assume.
+
+## Red Flag Phrases
+
+Stop immediately and reconsider if about to say:
+- "out of laziness"
+- "for simplicity"
+- "as any"
+- "we can fix this later"
+- "should work"
+
+These indicate guessing rather than verifying.
+
