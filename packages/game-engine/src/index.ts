@@ -29,6 +29,10 @@ import {
   CardType,
   GambitCardId,
   AdvanceCard,
+  CombatAdvanceResult,
+  CombatInput,
+  CombatInputRequest,
+  PendingCombat,
 } from '@quantum/types';
 import {
   cloneState,
@@ -59,6 +63,7 @@ import {
   getMovePath,
   getShipAtPosition,
   getOrbitalPositions,
+  getAdjacentPositions,
 } from './utils/board.js';
 
 // =============================================================================
@@ -140,7 +145,7 @@ export class GameEngine {
     }
 
     // Reset turn flags
-    player.hasUsedFlexibleThiisTurn = false;
+    player.hasUsedFlexibleThisTurn = false;
     player.bonusMoves = 0;
 
     // Brilliant: +2 research at turn start
@@ -464,85 +469,616 @@ export class GameEngine {
   
  
   // ===========================================================================
-  // ACTION: ATTACK - REVISED REFACTOR WITH MULTIPLE STATES
+  // ACTION: ATTACK - REVISED REFACTOR WITH MULTIPLE STATES - NOT CURRENTLY IN USE - REFACTOR FOR SINGLE COMBAT ENTRY POINT
   // =========================================================================== 
 
   // Validate attack, check for Dangerous, return combat setup
-  initiateAttack(
-  playerId: string, 
-  shipId: string, 
+//   initiateAttack(
+//   playerId: string, 
+//   shipId: string, 
+//   targetPosition: Position
+// ): { success: true; data: { attackerShipId: string; defenderShipId: string; defenderHasDangerous: boolean } } | { success: false; error: string } {
+//   const validation = validateAttack(this.state, playerId, shipId, targetPosition);
+//   if (!validation.valid) {
+//     return { success: false, error: validation.reason! };
+//   }
+
+//   const defenderShip = getShipAtPosition(targetPosition, this.state.ships)!;
+//   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+//   const defenderHasDangerous = this.hasCommandCard(defenderPlayer, 'dangerous');
+
+//   return { 
+//     success: true, 
+//     data: { 
+//       attackerShipId: shipId, 
+//       defenderShipId: defenderShip.id, 
+//       defenderHasDangerous 
+//     } 
+//   };
+// }
+
+// // Dangerous - handle both ships destroyed, no dominance change, no other effects
+// resolveDangerous(
+//   playerId: string, 
+//   attackerShipId: string, 
+//   defenderShipId: string
+// ): { success: true; data: GameState } | { success: false; error: string } {
+//   const attackerShip = getShip(this.state, attackerShipId)!;
+//   const defenderShip = getShip(this.state, defenderShipId)!;
+//   const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
+//   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+
+//   // Re-roll and send both to scrapyard
+//   const attackerNewPip = rollDie();
+//   const defenderNewPip = rollDie();
+//   attackerPlayer.scrapyard.push(attackerNewPip);
+//   defenderPlayer.scrapyard.push(defenderNewPip);
+
+//   // Remove both ships from board
+//   this.state.ships = this.state.ships.filter(
+//     s => s.id !== attackerShipId && s.id !== defenderShipId
+//   );
+
+//   // No dominance change
+//   // Mark attacker as having moved and deduct action
+//   attackerPlayer.actionsRemaining -= 1;
+
+//   this.state.updatedAt = new Date();
+//   return { success: true, data: this.getState() };
+// }
+// // Generate rolls, apply Rational, Ferocious, and Strategic.
+// rollCombat(
+//   attackerShipId: string, 
+//   defenderShipId: string
+// ): { 
+//   attackerRoll: number; 
+//   defenderRoll: number; 
+//   attackerTotal: number; 
+//   defenderTotal: number;
+//   attackerModifiers: string[];
+//   defenderModifiers: string[];
+// } {
+//   const attackerShip = getShip(this.state, attackerShipId)!;
+//   const defenderShip = getShip(this.state, defenderShipId)!;
+//   const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
+//   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+
+//   const attackerModifiers: string[] = [];
+//   const defenderModifiers: string[] = [];
+
+//   // Rational: fix roll at 3
+//   let attackerRoll = this.hasCommandCard(attackerPlayer, 'rational') 
+//     ? (attackerModifiers.push('Rational: roll fixed at 3'), 3)
+//     : rollDie();
+//   let defenderRoll = this.hasCommandCard(defenderPlayer, 'rational')
+//     ? (defenderModifiers.push('Rational: roll fixed at 3'), 3)
+//     : rollDie();
+
+//   // Ferocious: -1 to holder's roll
+//   if (this.hasCommandCard(attackerPlayer, 'ferocious')) {
+//     attackerRoll = Math.max(1, attackerRoll - 1);
+//     attackerModifiers.push('Ferocious: -1 to roll');
+//   }
+//   if (this.hasCommandCard(defenderPlayer, 'ferocious')) {
+//     defenderRoll = Math.max(1, defenderRoll - 1);
+//     defenderModifiers.push('Ferocious: -1 to roll');
+//   }
+
+//   // Calculate totals
+//   let attackerTotal = attackerShip.pipValue + attackerRoll;
+//   let defenderTotal = defenderShip.pipValue + defenderRoll;
+
+//   // Strategic: -2 if adjacent friendly ships
+//   if (this.hasCommandCard(attackerPlayer, 'strategic')) {
+//     const adjacentFriendly = this.state.ships.filter(s => 
+//       s.id !== attackerShipId &&
+//       s.ownerId === attackerPlayer.id &&
+//       s.position && attackerShip.position &&
+//       getAdjacentPositions(attackerShip.position).some(
+//         adj => adj.x === s.position!.x && adj.y === s.position!.y
+//       )
+//     );
+//     if (adjacentFriendly.length > 0) {
+//       attackerTotal -= 2;
+//       attackerModifiers.push('Strategic: -2 (adjacent ally)');
+//     }
+//   }
+//   if (this.hasCommandCard(defenderPlayer, 'strategic')) {
+//     const adjacentFriendly = this.state.ships.filter(s => 
+//       s.id !== defenderShipId &&
+//       s.ownerId === defenderPlayer.id &&
+//       s.position && defenderShip.position &&
+//       getAdjacentPositions(defenderShip.position).some(
+//         adj => adj.x === s.position!.x && adj.y === s.position!.y
+//       )
+//     );
+//     if (adjacentFriendly.length > 0) {
+//       defenderTotal -= 2;
+//       defenderModifiers.push('Strategic: -2 (adjacent ally)');
+//     }
+//   }
+
+//   return { attackerRoll, defenderRoll, attackerTotal, defenderTotal, attackerModifiers, defenderModifiers };
+// }
+// // Handle Cruel, Relentless, and Scrappy re-rolls. Reapply Ferocious
+
+// rerollCombat(
+//   attackerShipId: string,
+//   defenderShipId: string,
+//   currentAttackerRoll: number,
+//   currentDefenderRoll: number,
+//   type: 'cruel' | 'relentless' | 'scrappy',
+//   initiatedBy: string
+// ): {
+//   attackerRoll: number;
+//   defenderRoll: number;
+//   attackerTotal: number;
+//   defenderTotal: number;
+//   rerolledSide: 'attacker' | 'defender';
+// } {
+//   const attackerShip = getShip(this.state, attackerShipId)!;
+//   const defenderShip = getShip(this.state, defenderShipId)!;
+//   const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
+//   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+
+//   let rerolledSide: 'attacker' | 'defender';
+
+//   if (type === 'cruel') {
+//     rerolledSide = initiatedBy === attackerPlayer.id ? 'defender' : 'attacker';
+//   } else {
+//     rerolledSide = initiatedBy === attackerPlayer.id ? 'attacker' : 'defender';
+//   }
+
+//   let newRoll = rollDie();
+
+//   // Apply Rational if re-rolled player has it
+//   const rerolledPlayer = rerolledSide === 'attacker' ? attackerPlayer : defenderPlayer;
+//   if (this.hasCommandCard(rerolledPlayer, 'rational')) {
+//     newRoll = 3;
+//   }
+
+//   // Apply Ferocious if re-rolled player has it
+//   if (this.hasCommandCard(rerolledPlayer, 'ferocious')) {
+//     newRoll = Math.max(1, newRoll - 1);
+//   }
+
+//   const attackerRoll = rerolledSide === 'attacker' ? newRoll : currentAttackerRoll;
+//   const defenderRoll = rerolledSide === 'defender' ? newRoll : currentDefenderRoll;
+
+//   let attackerTotal = attackerShip.pipValue + attackerRoll;
+//   let defenderTotal = defenderShip.pipValue + defenderRoll;
+
+//   // Reapply Strategic
+//   if (this.hasCommandCard(attackerPlayer, 'strategic')) {
+//     const adjacentFriendly = this.state.ships.filter(s => 
+//       s.id !== attackerShipId &&
+//       s.ownerId === attackerPlayer.id &&
+//       s.position && attackerShip.position &&
+//       getAdjacentPositions(attackerShip.position).some(
+//         adj => adj.x === s.position!.x && adj.y === s.position!.y
+//       )
+//     );
+//     if (adjacentFriendly.length > 0) {
+//       attackerTotal -= 2;
+//     }
+//   }
+//   if (this.hasCommandCard(defenderPlayer, 'strategic')) {
+//     const adjacentFriendly = this.state.ships.filter(s => 
+//       s.id !== defenderShipId &&
+//       s.ownerId === defenderPlayer.id &&
+//       s.position && defenderShip.position &&
+//       getAdjacentPositions(defenderShip.position).some(
+//         adj => adj.x === s.position!.x && adj.y === s.position!.y
+//       )
+//     );
+//     if (adjacentFriendly.length > 0) {
+//       defenderTotal -= 2;
+//     }
+//   }
+
+//   return { attackerRoll, defenderRoll, attackerTotal, defenderTotal, rerolledSide };
+// }
+
+// // Determine winner, apply outcomes including Stubborn
+// finalizeCombat(
+//   attackerShipId: string,
+//   defenderShipId: string,
+//   attackerRoll: number,
+//   defenderRoll: number,
+//   attackerTotal: number,
+//   defenderTotal: number,
+//   moveToTarget: boolean
+// ): { success: true; data: GameState; combatResult: CombatResult } | { success: false; error: string } {
+//   const attackerShip = getShip(this.state, attackerShipId)!;
+//   const defenderShip = getShip(this.state, defenderShipId)!;
+//   const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
+//   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+//   const attackerOrigin = attackerShip.position!;
+
+//   // Determine winner - Stubborn modifies tie rule
+//   const defenderHasStubbornCard = this.hasCommandCard(defenderPlayer, 'stubborn');
+//   let winner: 'attacker' | 'defender';
+  
+//   if (attackerTotal === defenderTotal) {
+//     // Tie: normally attacker wins, Stubborn reverses
+//     winner = defenderHasStubbornCard ? 'defender' : 'attacker';
+//   } else {
+//     // Lower total wins
+//     winner = attackerTotal < defenderTotal ? 'attacker' : 'defender';
+//   }
+
+//   let defenderNewPipValue: ShipType | null = null;
+//   let attackerNewPipValue: ShipType | null = null;
+//   let attackerFinalPosition: Position;
+//   const isDangerousResolution = false;
+
+//   if (winner === 'attacker') {
+//     // Defender destroyed
+//     defenderNewPipValue = rollDie();
+//     defenderPlayer.scrapyard.push(defenderNewPipValue);
+//     defenderPlayer.dominanceCounter -= 1;
+
+//     const defenderIndex = this.state.ships.findIndex(s => s.id === defenderShip.id);
+//     this.state.ships.splice(defenderIndex, 1);
+
+//     attackerFinalPosition = moveToTarget ? defenderShip.position! : attackerOrigin;
+//     attackerShip.position = attackerFinalPosition;
+//     attackerPlayer.dominanceCounter += 1;
+//   } else {
+//     // Defender wins
+//     attackerFinalPosition = attackerOrigin;
+
+//     // Stubborn: attacker is also destroyed on loss
+//     if (defenderHasStubbornCard) {
+//       attackerNewPipValue = rollDie();
+//       attackerPlayer.scrapyard.push(attackerNewPipValue);
+//       attackerPlayer.dominanceCounter -= 1;
+//       defenderPlayer.dominanceCounter += 1;
+
+//       const attackerIndex = this.state.ships.findIndex(s => s.id === attackerShip.id);
+//       this.state.ships.splice(attackerIndex, 1);
+//     }
+//   }
+
+//   attackerShip.hasMovedThisTurn = true;
+//   attackerPlayer.actionsRemaining -= 1;
+
+//   const combatResult: CombatResult = {
+//     attackerRoll,
+//     defenderRoll,
+//     attackerTotal,
+//     defenderTotal,
+//     winner,
+//     attackerFinalPosition,
+//     defenderNewPipValue,
+//     attackerNewPipValue,
+//     effectsApplied: [],
+//   };
+
+//   const action: AttackAction = {
+//     type: ActionType.ATTACK,
+//     playerId: attackerPlayer.id,
+//     timestamp: new Date(),
+//     shipId: attackerShipId,
+//     fromPosition: attackerOrigin,
+//     targetPosition: defenderShip.position!,
+//     targetShipId: defenderShip.id,
+//     combatResult,
+//     targetPlayerId: defenderShip.ownerId,
+//   };
+//   this.state.actionLog.push(action);
+//   this.state.updatedAt = new Date();
+
+//   this.emit({
+//     type: GameEventType.COMBAT_RESOLVED,
+//     gameId: this.state.id,
+//     playerId: attackerPlayer.id,
+//     data: { action, combatResult },
+//     timestamp: new Date(),
+//   });
+
+//   return { success: true, data: this.getState(), combatResult };
+// }
+
+  // ===========================================================================
+// COMBAT: SINGLE ENTRY POINT PATTERN
+// ===========================================================================
+
+initiateAttack(
+  playerId: string,
+  shipId: string,
   targetPosition: Position
-): { success: true; data: { attackerShipId: string; defenderShipId: string; defenderHasDangerous: boolean } } | { success: false; error: string } {
+): CombatAdvanceResult {
   const validation = validateAttack(this.state, playerId, shipId, targetPosition);
   if (!validation.valid) {
-    return { success: false, error: validation.reason! };
+    return { success: false, error: validation.reason!, completed: false };
   }
 
+  const attackerShip = getShip(this.state, shipId)!;
   const defenderShip = getShipAtPosition(targetPosition, this.state.ships)!;
+  const attackerPlayer = getPlayer(this.state, playerId)!;
   const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+
   const defenderHasDangerous = this.hasCommandCard(defenderPlayer, 'dangerous');
 
-  return { 
-    success: true, 
-    data: { 
-      attackerShipId: shipId, 
-      defenderShipId: defenderShip.id, 
-      defenderHasDangerous 
-    } 
+  this.state.pendingCombat = {
+    attackerShipId: shipId,
+    defenderShipId: defenderShip.id,
+    attackerPlayerId: playerId,
+    defenderPlayerId: defenderShip.ownerId,
+    attackerOrigin: attackerShip.position!,
+    targetPosition,
+    defenderHasDangerous,
+    attackerRoll: 0,
+    defenderRoll: 0,
+    attackerTotal: 0,
+    defenderTotal: 0,
+    attackerModifiers: [],
+    defenderModifiers: [],
+    rerollsUsed: { cruel: false, relentless: false, scrappy: false },
+    attackerCanCruel: false,
+    attackerCanRelentless: false,
+    attackerCanScrappy: false,
+    defenderCanCruel: false,
+    defenderCanRelentless: false,
+  };
+
+  this.state.combatPhase = defenderHasDangerous ? 'pre-combat' : 'rolls';
+  this.state.updatedAt = new Date();
+
+  // Advance combat as far as possible
+  return this.advanceCombat();
+}
+
+advanceCombat(input?: CombatInput): CombatAdvanceResult {
+  if (!this.state.pendingCombat || !this.state.combatPhase) {
+    return { success: false, error: 'No active combat', completed: false };
+  }
+
+  const { attackerPlayerId, defenderPlayerId } = this.state.pendingCombat;
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
+
+  // Process input if provided
+  if (input) {
+    const inputResult = this.processCombatInput(input);
+    if (!inputResult.success) {
+      return inputResult;
+    }
+  }
+
+  // Keep advancing until human input needed or combat completes
+  while (this.state.combatPhase !== null) {
+    const phaseResult = this.processCurrentPhase();
+    
+    if (!phaseResult.success) {
+      return phaseResult;
+    }
+    
+    if (phaseResult.needsInput) {
+      return phaseResult;
+    }
+    
+    if (phaseResult.completed) {
+      return phaseResult;
+    }
+  }
+
+  return { success: true, data: this.getState(), completed: true };
+}
+
+private processCombatInput(input: CombatInput): CombatAdvanceResult {
+  if (!this.state.pendingCombat) {
+    return { success: false, error: 'No active combat', completed: false };
+  }
+
+  switch (input.type) {
+    case 'dangerous':
+      if (this.state.combatPhase !== 'pre-combat') {
+        return { success: false, error: 'Not in pre-combat phase', completed: false };
+      }
+      if (input.activate) {
+        return this.resolveDangerous();
+      } else {
+        this.state.combatPhase = 'rolls';
+        this.executeRolls();
+        return { success: true, data: this.getState(), completed: false };
+      }
+
+    case 'reroll':
+      if (this.state.combatPhase !== 're-roll') {
+        return { success: false, error: 'Not in re-roll phase', completed: false };
+      }
+      return this.executeReroll(input.rerollType, input.playerId);
+
+    case 'skipRerolls':
+      if (this.state.combatPhase !== 're-roll') {
+        return { success: false, error: 'Not in re-roll phase', completed: false };
+      }
+      this.state.combatPhase = 'resolution';
+      return { success: true, data: this.getState(), completed: false };
+
+    case 'finalize':
+      if (this.state.combatPhase !== 'resolution') {
+        return { success: false, error: 'Not in resolution phase', completed: false };
+      }
+      return this.resolveFinalize(input.moveToTarget);
+
+    default:
+      return { success: false, error: 'Unknown input type', completed: false };
+  }
+}
+
+private processCurrentPhase(): CombatAdvanceResult {
+  if (!this.state.pendingCombat || !this.state.combatPhase) {
+    return { success: true, completed: true, data: this.getState() };
+  }
+
+  const { attackerPlayerId, defenderPlayerId } = this.state.pendingCombat;
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
+
+  switch (this.state.combatPhase) {
+    case 'pre-combat':
+      return this.processPreCombatPhase(defenderPlayer);
+
+    case 'rolls':
+      this.executeRolls();
+      return { success: true, data: this.getState(), completed: false };
+
+    case 're-roll':
+      return this.processRerollPhase(attackerPlayer, defenderPlayer);
+
+    case 'resolution':
+      return this.processResolutionPhase(attackerPlayer);
+
+    default:
+      return { success: true, completed: true, data: this.getState() };
+  }
+}
+
+private processPreCombatPhase(defenderPlayer: Player): CombatAdvanceResult {
+  if (defenderPlayer.type === 'ai') {
+    // AI never activates Dangerous (MVP)
+    this.state.combatPhase = 'rolls';
+    this.executeRolls();
+    return { success: true, data: this.getState(), completed: false };
+  }
+
+  // Human defender - request input
+  return {
+    success: true,
+    data: this.getState(),
+    completed: false,
+    needsInput: {
+      phase: 'pre-combat',
+      awaitingPlayerId: defenderPlayer.id,
+      options: {
+        canActivateDangerous: true,
+        canSkipDangerous: true,
+      },
+    },
   };
 }
 
-// Dangerous - handle both ships destroyed, no dominance change, no other effects
-resolveDangerous(
-  playerId: string, 
-  attackerShipId: string, 
-  defenderShipId: string
-): { success: true; data: GameState } | { success: false; error: string } {
-  const attackerShip = getShip(this.state, attackerShipId)!;
-  const defenderShip = getShip(this.state, defenderShipId)!;
-  const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
-  const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+private processRerollPhase(attackerPlayer: Player, defenderPlayer: Player): CombatAdvanceResult {
+  const {
+    attackerTotal, defenderTotal, rerollsUsed,
+    attackerCanCruel, attackerCanRelentless, attackerCanScrappy,
+    defenderCanCruel, defenderCanRelentless,
+    attackerPlayerId, defenderPlayerId,
+  } = this.state.pendingCombat!;
 
-  // Re-roll and send both to scrapyard
-  const attackerNewPip = rollDie();
-  const defenderNewPip = rollDie();
-  attackerPlayer.scrapyard.push(attackerNewPip);
-  defenderPlayer.scrapyard.push(defenderNewPip);
+  const attackerWinning = attackerTotal <= defenderTotal;
 
-  // Remove both ships from board
-  this.state.ships = this.state.ships.filter(
-    s => s.id !== attackerShipId && s.id !== defenderShipId
-  );
+  // AI attacker re-rolls if losing
+  if (attackerPlayer.type === 'ai' && !attackerWinning) {
+    if (attackerCanCruel && !rerollsUsed.cruel) {
+      return this.executeReroll('cruel', attackerPlayerId);
+    }
+    if (attackerCanRelentless && !rerollsUsed.relentless) {
+      return this.executeReroll('relentless', attackerPlayerId);
+    }
+    if (attackerCanScrappy && !rerollsUsed.scrappy) {
+      return this.executeReroll('scrappy', attackerPlayerId);
+    }
+  }
 
-  // No dominance change
-  // Mark attacker as having moved and deduct action
-  attackerPlayer.actionsRemaining -= 1;
+  // AI defender re-rolls if losing
+  if (defenderPlayer.type === 'ai' && attackerWinning) {
+    if (defenderCanCruel && !rerollsUsed.cruel) {
+      return this.executeReroll('cruel', defenderPlayerId);
+    }
+    if (defenderCanRelentless && !rerollsUsed.relentless) {
+      return this.executeReroll('relentless', defenderPlayerId);
+    }
+  }
 
-  this.state.updatedAt = new Date();
-  return { success: true, data: this.getState() };
+  // Check for human re-roll options
+  const availableRerolls: Array<{ type: 'cruel' | 'relentless' | 'scrappy'; playerId: string }> = [];
+
+  if (attackerPlayer.type === 'human') {
+    if (attackerCanCruel && !rerollsUsed.cruel) {
+      availableRerolls.push({ type: 'cruel', playerId: attackerPlayerId });
+    }
+    if (attackerCanRelentless && !rerollsUsed.relentless) {
+      availableRerolls.push({ type: 'relentless', playerId: attackerPlayerId });
+    }
+    if (attackerCanScrappy && !rerollsUsed.scrappy) {
+      availableRerolls.push({ type: 'scrappy', playerId: attackerPlayerId });
+    }
+  }
+
+  if (defenderPlayer.type === 'human') {
+    if (defenderCanCruel && !rerollsUsed.cruel) {
+      availableRerolls.push({ type: 'cruel', playerId: defenderPlayerId });
+    }
+    if (defenderCanRelentless && !rerollsUsed.relentless) {
+      availableRerolls.push({ type: 'relentless', playerId: defenderPlayerId });
+    }
+  }
+
+  if (availableRerolls.length > 0) {
+    // Human has re-roll options - determine who we're waiting for
+    const awaitingPlayerId = availableRerolls[0].playerId;
+    return {
+      success: true,
+      data: this.getState(),
+      completed: false,
+      needsInput: {
+        phase: 're-roll',
+        awaitingPlayerId,
+        options: {
+          availableRerolls,
+          canSkipRerolls: true,
+        },
+      },
+    };
+  }
+
+  // No re-rolls remaining, advance to resolution
+  this.state.combatPhase = 'resolution';
+  return { success: true, data: this.getState(), completed: false };
 }
-// Generate rolls, apply Rational, Ferocious, and Strategic.
-rollCombat(
-  attackerShipId: string, 
-  defenderShipId: string
-): { 
-  attackerRoll: number; 
-  defenderRoll: number; 
-  attackerTotal: number; 
-  defenderTotal: number;
-  attackerModifiers: string[];
-  defenderModifiers: string[];
-} {
+
+private processResolutionPhase(attackerPlayer: Player): CombatAdvanceResult {
+  if (attackerPlayer.type === 'ai') {
+    // AI always moves to target if it wins
+    const attackerWins = this.state.pendingCombat!.attackerTotal <= this.state.pendingCombat!.defenderTotal;
+    return this.resolveFinalize(attackerWins);
+  }
+
+  // Human attacker - request input
+  return {
+    success: true,
+    data: this.getState(),
+    completed: false,
+    needsInput: {
+      phase: 'resolution',
+      awaitingPlayerId: attackerPlayer.id,
+      options: {
+        canMoveToTarget: true,
+        canStayInPlace: true,
+      },
+    },
+  };
+}
+
+private executeRolls(): void {
+  if (!this.state.pendingCombat) return;
+
+  const { attackerShipId, defenderShipId, attackerPlayerId, defenderPlayerId } = this.state.pendingCombat;
+
   const attackerShip = getShip(this.state, attackerShipId)!;
   const defenderShip = getShip(this.state, defenderShipId)!;
-  const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
-  const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
 
   const attackerModifiers: string[] = [];
   const defenderModifiers: string[] = [];
 
   // Rational: fix roll at 3
-  let attackerRoll = this.hasCommandCard(attackerPlayer, 'rational') 
+  let attackerRoll = this.hasCommandCard(attackerPlayer, 'rational')
     ? (attackerModifiers.push('Rational: roll fixed at 3'), 3)
     : rollDie();
   let defenderRoll = this.hasCommandCard(defenderPlayer, 'rational')
@@ -565,7 +1101,7 @@ rollCombat(
 
   // Strategic: -2 if adjacent friendly ships
   if (this.hasCommandCard(attackerPlayer, 'strategic')) {
-    const adjacentFriendly = this.state.ships.filter(s => 
+    const adjacentFriendly = this.state.ships.filter(s =>
       s.id !== attackerShipId &&
       s.ownerId === attackerPlayer.id &&
       s.position && attackerShip.position &&
@@ -579,7 +1115,7 @@ rollCombat(
     }
   }
   if (this.hasCommandCard(defenderPlayer, 'strategic')) {
-    const adjacentFriendly = this.state.ships.filter(s => 
+    const adjacentFriendly = this.state.ships.filter(s =>
       s.id !== defenderShipId &&
       s.ownerId === defenderPlayer.id &&
       s.position && defenderShip.position &&
@@ -593,46 +1129,66 @@ rollCombat(
     }
   }
 
-  return { attackerRoll, defenderRoll, attackerTotal, defenderTotal, attackerModifiers, defenderModifiers };
-}
-// Handle Cruel, Relentless, and Scrappy re-rolls. Reapply Ferocious
+  // Determine re-roll availability
+  const isAttackerTurn = this.state.currentPlayerId === attackerPlayer.id;
 
-rerollCombat(
-  attackerShipId: string,
-  defenderShipId: string,
-  currentAttackerRoll: number,
-  currentDefenderRoll: number,
-  type: 'cruel' | 'relentless' | 'scrappy',
-  initiatedBy: string
-): {
-  attackerRoll: number;
-  defenderRoll: number;
-  attackerTotal: number;
-  defenderTotal: number;
-  rerolledSide: 'attacker' | 'defender';
-} {
+  const attackerCanCruel = this.hasCommandCard(attackerPlayer, 'cruel');
+  const attackerCanRelentless = this.hasCommandCard(attackerPlayer, 'relentless');
+  const attackerCanScrappy = isAttackerTurn && this.hasCommandCard(attackerPlayer, 'scrappy');
+  const defenderCanCruel = this.hasCommandCard(defenderPlayer, 'cruel');
+  const defenderCanRelentless = this.hasCommandCard(defenderPlayer, 'relentless');
+
+  const hasRerollOptions = attackerCanCruel || attackerCanRelentless || attackerCanScrappy ||
+    defenderCanCruel || defenderCanRelentless;
+
+  this.state.pendingCombat = {
+    ...this.state.pendingCombat,
+    attackerRoll,
+    defenderRoll,
+    attackerTotal,
+    defenderTotal,
+    attackerModifiers,
+    defenderModifiers,
+    attackerCanCruel,
+    attackerCanRelentless,
+    attackerCanScrappy,
+    defenderCanCruel,
+    defenderCanRelentless,
+  };
+
+  this.state.combatPhase = hasRerollOptions ? 're-roll' : 'resolution';
+  this.state.updatedAt = new Date();
+}
+
+private executeReroll(type: 'cruel' | 'relentless' | 'scrappy', initiatedByPlayerId: string): CombatAdvanceResult {
+  if (!this.state.pendingCombat) {
+    return { success: false, error: 'No active combat', completed: false };
+  }
+
+  const {
+    attackerShipId, defenderShipId, attackerPlayerId, defenderPlayerId,
+    attackerRoll: currentAttackerRoll, defenderRoll: currentDefenderRoll
+  } = this.state.pendingCombat;
+
   const attackerShip = getShip(this.state, attackerShipId)!;
   const defenderShip = getShip(this.state, defenderShipId)!;
-  const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
-  const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
 
   let rerolledSide: 'attacker' | 'defender';
 
   if (type === 'cruel') {
-    rerolledSide = initiatedBy === attackerPlayer.id ? 'defender' : 'attacker';
+    rerolledSide = initiatedByPlayerId === attackerPlayerId ? 'defender' : 'attacker';
   } else {
-    rerolledSide = initiatedBy === attackerPlayer.id ? 'attacker' : 'defender';
+    rerolledSide = initiatedByPlayerId === attackerPlayerId ? 'attacker' : 'defender';
   }
 
   let newRoll = rollDie();
 
-  // Apply Rational if re-rolled player has it
   const rerolledPlayer = rerolledSide === 'attacker' ? attackerPlayer : defenderPlayer;
   if (this.hasCommandCard(rerolledPlayer, 'rational')) {
     newRoll = 3;
   }
-
-  // Apply Ferocious if re-rolled player has it
   if (this.hasCommandCard(rerolledPlayer, 'ferocious')) {
     newRoll = Math.max(1, newRoll - 1);
   }
@@ -645,7 +1201,7 @@ rerollCombat(
 
   // Reapply Strategic
   if (this.hasCommandCard(attackerPlayer, 'strategic')) {
-    const adjacentFriendly = this.state.ships.filter(s => 
+    const adjacentFriendly = this.state.ships.filter(s =>
       s.id !== attackerShipId &&
       s.ownerId === attackerPlayer.id &&
       s.position && attackerShip.position &&
@@ -658,7 +1214,7 @@ rerollCombat(
     }
   }
   if (this.hasCommandCard(defenderPlayer, 'strategic')) {
-    const adjacentFriendly = this.state.ships.filter(s => 
+    const adjacentFriendly = this.state.ships.filter(s =>
       s.id !== defenderShipId &&
       s.ownerId === defenderPlayer.id &&
       s.position && defenderShip.position &&
@@ -671,44 +1227,100 @@ rerollCombat(
     }
   }
 
-  return { attackerRoll, defenderRoll, attackerTotal, defenderTotal, rerolledSide };
+  this.state.pendingCombat = {
+    ...this.state.pendingCombat,
+    attackerRoll,
+    defenderRoll,
+    attackerTotal,
+    defenderTotal,
+    rerollsUsed: { ...this.state.pendingCombat.rerollsUsed, [type]: true },
+  };
+
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState(), completed: false };
 }
 
-// Determine winner, apply outcomes including Stubborn
-finalizeCombat(
-  attackerShipId: string,
-  defenderShipId: string,
-  attackerRoll: number,
-  defenderRoll: number,
-  attackerTotal: number,
-  defenderTotal: number,
-  moveToTarget: boolean
-): { success: true; data: GameState; combatResult: CombatResult } | { success: false; error: string } {
+private resolveDangerous(): CombatAdvanceResult {
+  if (!this.state.pendingCombat) {
+    return { success: false, error: 'No active combat', completed: false };
+  }
+
+  const { attackerShipId, defenderShipId, attackerPlayerId, defenderPlayerId } = this.state.pendingCombat;
+
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
+
+  // Deduct action BEFORE removing ships
+  attackerPlayer.actionsRemaining -= 1;
+
+  // Re-roll and send both to scrapyard
+  const attackerNewPip = rollDie();
+  const defenderNewPip = rollDie();
+  attackerPlayer.scrapyard.push(attackerNewPip);
+  defenderPlayer.scrapyard.push(defenderNewPip);
+
+  // Remove both ships
+  this.state.ships = this.state.ships.filter(
+    s => s.id !== attackerShipId && s.id !== defenderShipId
+  );
+
+  const combatResult: CombatResult = {
+    attackerRoll: 0,
+    defenderRoll: 0,
+    attackerTotal: 0,
+    defenderTotal: 0,
+    winner: 'defender',
+    attackerFinalPosition: this.state.pendingCombat.attackerOrigin,
+    defenderNewPipValue: defenderNewPip,
+    attackerNewPipValue: attackerNewPip,
+    attackerPlayerId,
+    defenderPlayerId,
+    effectsApplied: ['Dangerous'],
+    dangerousActivated: true,
+  };
+
+  // Clear combat state
+  this.state.combatPhase = null;
+  this.state.pendingCombat = null;
+  this.state.updatedAt = new Date();
+
+  return { success: true, data: this.getState(), combatResult, completed: true };
+}
+
+private resolveFinalize(moveToTarget: boolean): CombatAdvanceResult {
+  if (!this.state.pendingCombat) {
+    return { success: false, error: 'No active combat', completed: false };
+  }
+
+  const {
+    attackerShipId, defenderShipId, attackerPlayerId, defenderPlayerId,
+    attackerOrigin, targetPosition,
+    attackerRoll, defenderRoll, attackerTotal, defenderTotal
+  } = this.state.pendingCombat;
+
   const attackerShip = getShip(this.state, attackerShipId)!;
   const defenderShip = getShip(this.state, defenderShipId)!;
-  const attackerPlayer = getPlayer(this.state, attackerShip.ownerId)!;
-  const defenderPlayer = getPlayer(this.state, defenderShip.ownerId)!;
-  const attackerOrigin = attackerShip.position!;
+  const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
+  const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
 
   // Determine winner - Stubborn modifies tie rule
   const defenderHasStubbornCard = this.hasCommandCard(defenderPlayer, 'stubborn');
   let winner: 'attacker' | 'defender';
-  
+
   if (attackerTotal === defenderTotal) {
-    // Tie: normally attacker wins, Stubborn reverses
     winner = defenderHasStubbornCard ? 'defender' : 'attacker';
   } else {
-    // Lower total wins
     winner = attackerTotal < defenderTotal ? 'attacker' : 'defender';
   }
 
   let defenderNewPipValue: ShipType | null = null;
   let attackerNewPipValue: ShipType | null = null;
   let attackerFinalPosition: Position;
-  const isDangerousResolution = false;
+
+  // Deduct action BEFORE any ship removal
+  attackerPlayer.actionsRemaining -= 1;
 
   if (winner === 'attacker') {
-    // Defender destroyed
     defenderNewPipValue = rollDie();
     defenderPlayer.scrapyard.push(defenderNewPipValue);
     defenderPlayer.dominanceCounter -= 1;
@@ -716,14 +1328,13 @@ finalizeCombat(
     const defenderIndex = this.state.ships.findIndex(s => s.id === defenderShip.id);
     this.state.ships.splice(defenderIndex, 1);
 
-    attackerFinalPosition = moveToTarget ? defenderShip.position! : attackerOrigin;
+    attackerFinalPosition = moveToTarget ? targetPosition : attackerOrigin;
     attackerShip.position = attackerFinalPosition;
+    attackerShip.hasMovedThisTurn = true;
     attackerPlayer.dominanceCounter += 1;
   } else {
-    // Defender wins
     attackerFinalPosition = attackerOrigin;
 
-    // Stubborn: attacker is also destroyed on loss
     if (defenderHasStubbornCard) {
       attackerNewPipValue = rollDie();
       attackerPlayer.scrapyard.push(attackerNewPipValue);
@@ -732,11 +1343,15 @@ finalizeCombat(
 
       const attackerIndex = this.state.ships.findIndex(s => s.id === attackerShip.id);
       this.state.ships.splice(attackerIndex, 1);
+      // Don't set hasMovedThisTurn - ship is destroyed
+    } else {
+      // Attacker lost but not destroyed
+      attackerShip.hasMovedThisTurn = true;
     }
   }
 
-  attackerShip.hasMovedThisTurn = true;
-  attackerPlayer.actionsRemaining -= 1;
+  // attackerShip.hasMovedThisTurn = true;
+  // attackerPlayer.actionsRemaining -= 1;
 
   const combatResult: CombatResult = {
     attackerRoll,
@@ -747,32 +1362,79 @@ finalizeCombat(
     attackerFinalPosition,
     defenderNewPipValue,
     attackerNewPipValue,
+    attackerPlayerId,
+    defenderPlayerId,
     effectsApplied: [],
   };
 
   const action: AttackAction = {
     type: ActionType.ATTACK,
-    playerId: attackerPlayer.id,
+    playerId: attackerPlayerId,
     timestamp: new Date(),
     shipId: attackerShipId,
     fromPosition: attackerOrigin,
-    targetPosition: defenderShip.position!,
-    targetShipId: defenderShip.id,
+    targetPosition,
+    targetShipId: defenderShipId,
     combatResult,
-    targetPlayerId: defenderShip.ownerId,
+    targetPlayerId: defenderPlayerId,
   };
   this.state.actionLog.push(action);
+
+  this.state.combatPhase = null;
+  this.state.pendingCombat = null;
   this.state.updatedAt = new Date();
 
   this.emit({
     type: GameEventType.COMBAT_RESOLVED,
     gameId: this.state.id,
-    playerId: attackerPlayer.id,
+    playerId: attackerPlayerId,
     data: { action, combatResult },
     timestamp: new Date(),
   });
 
-  return { success: true, data: this.getState(), combatResult };
+  return { success: true, data: this.getState(), combatResult, completed: true };
+}
+
+cancelCombat(): Result<GameState> {
+  // Stub for future: disconnect recovery, undo feature
+  this.state.combatPhase = null;
+  this.state.pendingCombat = null;
+  this.state.updatedAt = new Date();
+  return { success: true, data: this.getState() };
+}
+
+// Legacy attack method for AI compatibility
+attack(
+  playerId: string,
+  shipId: string,
+  targetPosition: Position,
+  moveToTarget: boolean = true
+): { success: true; data: GameState; combatResult: CombatResult } | { success: false; error: string } {
+  const result = this.initiateAttack(playerId, shipId, targetPosition);
+
+  if (!result.success) {
+    return { success: false, error: result.error! };
+  }
+
+  // Keep advancing until complete
+  let currentResult = result;
+  while (!currentResult.completed && currentResult.success) {
+    if (currentResult.needsInput) {
+      // AI auto-decisions are handled in advanceCombat
+      // If we still need input, it's for a human - break for legacy method
+      // For pure AI combat, this shouldn't happen
+      // Return error for legacy method since it expects synchronous resolution
+      return { success: false, error: 'Combat requires human input' };
+    }
+    currentResult = this.advanceCombat();
+  }
+
+  if (currentResult.completed && currentResult.combatResult) {
+    return { success: true, data: this.getState(), combatResult: currentResult.combatResult };
+  }
+
+  // Combat paused for human input
+  return { success: false, error: 'Combat did not complete' };
 }
 
   // ===========================================================================

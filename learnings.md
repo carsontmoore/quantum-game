@@ -360,6 +360,38 @@ if (result.success) {
 }
 ```
 
+---
+
+## 13. Session: Combat Refactor
+
+**Date:** Feb 2026
+**Context:** Larger refactor to create single combat entry point
+
+### What Went Wrong
+
+- Claude suggested `number` instead of `ShipType` out of "laziness" (Claude's word)
+- Claude suggested a new type that conflicted with an existing enum
+- Claude used `as any` to bypass type errors
+- Claude did not verify existing implementations before suggesting replacements
+- These errors compounded as session length increased
+
+### Root Cause
+
+Context drift in long sessions. Claude prioritized completion speed over correctness as the refactor grew in scope.
+
+### Prevention
+
+1. Single CLAUDE_RULES.md file at project root with non-negotiable principles
+2. At session start, Claude reads this file
+3. For complex refactors, break into smaller commits with verification between each
+4. If Claude uses phrases like "out of laziness" or "for simplicity", stop and demand the correct implementation
+5. Trust but verify - ask Claude to show its verification before implementing suggestions
+
+
+
+
+
+
 
 ## Future Topics to Add
 - [ ] Zustand store patterns

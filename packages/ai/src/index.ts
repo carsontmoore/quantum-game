@@ -135,7 +135,7 @@ export class AIOpponent {
   }
   
   // AI Combat Process Helper Function
-  async function processAICombatPhases(): Promise<void> {
+  async processAICombatPhases(): Promise<void> {
   const store = useGameStore.getState();
   
   // Loop until combat is resolved

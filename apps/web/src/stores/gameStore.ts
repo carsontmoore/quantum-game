@@ -14,7 +14,9 @@ import type {
   Ship,
   Player,
   AIDifficulty,
-  AdvanceCard
+  AdvanceCard,
+  CombatInput,
+  CombatResult,
 } from '@quantum/types';
 import { 
   GameEngine, 
@@ -25,7 +27,7 @@ import {
   getAvailableActions,
 } from '@quantum/game-engine';
 import { createAI } from '@quantum/ai';
-import { valid } from 'node-html-parser';
+
 
 // =============================================================================
 // TYPES
@@ -54,26 +56,34 @@ interface GameStore {
     loserPlayerId: string | null;
     dangerousActivated?: boolean;
   } | null;
-  combatPhase: 'pre-combat' | 'rolls' | 're-roll' | 'resolution' | null;
-    pendingCombat: {
-      attackerShipId: string;
-      defenderShipId: string;
-      attackerOrigin: Position;
-      targetPosition: Position;
-      defenderHasDangerous: boolean;
-      attackerRoll: number;
-      defenderRoll: number;
-      attackerTotal: number;
-      defenderTotal: number;
-      attackerModifiers: string[];
-      defenderModifiers: string[];
-      rerollsUsed: { cruel: boolean; relentless: boolean; scrappy: boolean };
-      attackerCanCruel: boolean;
-      attackerCanRelentless: boolean;
-      attackerCanScrappy: boolean;
-      defenderCanCruel: boolean;
-      defenderCanRelentless: boolean;
-    } | null;
+  
+  // Removed combatPhase because it's now in GameState
+
+  // combatPhase: 'pre-combat' | 'rolls' | 're-roll' | 'resolution' | null;
+  //   pendingCombat: {
+  //     attackerShipId: string;
+  //     defenderShipId: string;
+  //     attackerOrigin: Position;
+  //     targetPosition: Position;
+  //     defenderHasDangerous: boolean;
+  //     attackerRoll: number;
+  //     defenderRoll: number;
+  //     attackerTotal: number;
+  //     defenderTotal: number;
+  //     attackerModifiers: string[];
+  //     defenderModifiers: string[];
+  //     rerollsUsed: { cruel: boolean; relentless: boolean; scrappy: boolean };
+  //     attackerCanCruel: boolean;
+  //     attackerCanRelentless: boolean;
+  //     attackerCanScrappy: boolean;
+  //     defenderCanCruel: boolean;
+  //     defenderCanRelentless: boolean;
+  //   } | null;
+
+  // Updates for new combat refactor
+  submitCombatInput: (input: CombatInput) => void;
+  setCombatResult: (combatResult: CombatResult) => void;
+  cancelCombat: () => void;
 
   pendingGambitEffect: {
     type: string; // 'EXPANSION' | 'REORGANIZATION' | 'RELOCATION' | 'SABOTAGE'
@@ -130,17 +140,24 @@ interface GameStore {
   flexibleAdjust: (shipId: string, direction: 'up' | 'down') => void;
   // Attack method signatures
   initiateAttack: (shipId: string, targetPosition: Position) => void;
-  activateDangerous: () => void;
-  skipDangerous: () => void;
-  executeCombatRolls: (attackerShipId: string, defenderShipId: string, attackerOrigin: Position, targetPosition: Position) => void;
-  useCombatReroll: (type: 'cruel' | 'relentless' | 'scrappy', initiatedBy: string) => void;
-  skipRerolls: () => void;
-  finalizeCombat: (moveToTarget: boolean) => void;
+  
+  // Removed activateDangerous, skipDangerous, useCombatReroll, skipRerolls, finalizeCombat because they're replaced by submitCombatInput
+  // activateDangerous: () => void;
+  // skipDangerous: () => void;
+
+  // executeCombatRolls now in GameState - removed
+  // executeCombatRolls: (attackerShipId: string, defenderShipId: string, attackerOrigin: Position, targetPosition: Position) => void;
+
+  // useCombatReroll: (type: 'cruel' | 'relentless' | 'scrappy', initiatedBy: string) => void;
+  // skipRerolls: () => void;
+  // finalizeCombat: (moveToTarget: boolean) => void;
 
   // AI
   processAITurn: () => Promise<void>;
-  processAICombat: () => void;
-  processAICombatRerolls: () => void;
+
+  // Both processAICombat and processAICombatRerolls are now in GameState - removed
+  // processAICombat: () => void;
+  // processAICombatRerolls: () => void;
   
   // UI
   setShowSetupModal: (show: boolean) => void;
@@ -179,8 +196,6 @@ export const useGameStore = create<GameStore>()(
     isDeployMode: false,
     selectedScrapyardIndex: 0,
     lastCombatResult: null,
-    combatPhase: null,
-    pendingCombat: null,
     pendingGambitEffect: null,
     isFreeDeployMode: false,
     showReorganizationModal: false,
@@ -548,223 +563,291 @@ selectCard: (card: AdvanceCard) => {
     }
   }
 },
-
-    // Handle Attack logic
+    // Simplified Combat logic after unifying refactor that uses GameState
     initiateAttack: (shipId, targetPosition) => {
       const { engine, gameState } = get();
       if (!engine || !gameState) return;
 
       const playerId = gameState.currentPlayerId;
       const result = engine.initiateAttack(playerId, shipId, targetPosition);
-      if (!result.success) return;
 
-      const { attackerShipId, defenderShipId, defenderHasDangerous } = result.data;
-      const attackerShip = gameState.ships.find(s => s.id === attackerShipId)!;
-      const defenderShip = gameState.ships.find(s => s.id === defenderShipId)!;
-      const defenderPlayer = gameState.players.find(p => p.id === defenderShip.ownerId);
+      if (result.success) {
+        set({
+          gameState: result.data,
+          availableActions: engine.getAvailableActions(),
+        });
 
-      if (defenderHasDangerous) {
-        // Check if defender is AI
-        if (defenderPlayer?.type === 'ai') {
-          // AI decides immediately - skip Dangerous for MVP
-          get().executeCombatRolls(attackerShipId, defenderShipId, attackerShip.position!, targetPosition);
-        } else {
-          // Human defender - show pre-combat modal
-          set({
-            combatPhase: 'pre-combat',
-            pendingCombat: {
-              attackerShipId,
-              defenderShipId,
-              attackerOrigin: attackerShip.position!,
-              targetPosition,
-              defenderHasDangerous: true,
-              attackerRoll: 0,
-              defenderRoll: 0,
-              attackerTotal: 0,
-              defenderTotal: 0,
-              attackerModifiers: [],
-              defenderModifiers: [],
-              rerollsUsed: { cruel: false, relentless: false, scrappy: false },
-              attackerCanCruel: false,
-              attackerCanRelentless: false,
-              attackerCanScrappy: false,
-              defenderCanCruel: false,
-              defenderCanRelentless: false,
-            },
-          });
+        if (result.completed && result.combatResult) {
+          get().setCombatResult(result.combatResult, result.data);
         }
-      } else {
-        // No Dangerous - go straight to rolls
-        get().executeCombatRolls(attackerShipId, defenderShipId, attackerShip.position!, targetPosition);
       }
     },
 
-activateDangerous: () => {
-  const { engine, pendingCombat } = get();
-  if (!engine || !pendingCombat) return;
+    submitCombatInput: (input: CombatInput) => {
+      const { engine } = get();
+      if (!engine) return;
 
-  const result = engine.resolveDangerous(
-    engine.getState().currentPlayerId,
-    pendingCombat.attackerShipId,
-    pendingCombat.defenderShipId
-  );
+      const result = engine.advanceCombat(input);
 
-  if (result.success) {
-    set({
-      gameState: result.data,
-      availableActions: engine.getAvailableActions(),
-      combatPhase: null,
-      pendingCombat: null,
-      lastCombatResult: {
-        winner: 'none',
-        attackerRoll: 0,
-        defenderRoll: 0,
-        attackerTotal: 0,
-        defenderTotal: 0,
-        loserNewShipValue: null,
-        loserPlayerId: null,
-        dangerousActivated: true,
-      },
-    });
-  }
-},
+      if (result.success) {
+        set({
+          gameState: result.data,
+          availableActions: engine.getAvailableActions(),
+        });
 
-skipDangerous: () => {
-  const { pendingCombat } = get();
-  if (!pendingCombat) return;
-  get().executeCombatRolls(
-    pendingCombat.attackerShipId, 
-    pendingCombat.defenderShipId, 
-    pendingCombat.attackerOrigin, 
-    pendingCombat.targetPosition
-  );
-},
-
-executeCombatRolls: (attackerShipId, defenderShipId, attackerOrigin, targetPosition) => {
-  const { engine, gameState } = get();
-  if (!engine || !gameState) return;
-
-  const rolls = engine.rollCombat(attackerShipId, defenderShipId);
-  
-  const attackerShip = gameState.ships.find(s => s.id === attackerShipId)!;
-  const defenderShip = gameState.ships.find(s => s.id === defenderShipId)!;
-  const attackerPlayer = gameState.players.find(p => p.id === attackerShip.ownerId)!;
-  const defenderPlayer = gameState.players.find(p => p.id === defenderShip.ownerId)!;
-  const isAttackerTurn = gameState.currentPlayerId === attackerPlayer.id;
-
-  // Determine re-roll availability
-  const attackerCanCruel = attackerPlayer.activeCommandCards.some(
-    c => c.id.toString().split('-')[0].toLowerCase() === 'cruel'
-  );
-  const attackerCanRelentless = attackerPlayer.activeCommandCards.some(
-    c => c.id.toString().split('-')[0].toLowerCase() === 'relentless'
-  );
-  const attackerCanScrappy = isAttackerTurn && attackerPlayer.activeCommandCards.some(
-    c => c.id.toString().split('-')[0].toLowerCase() === 'scrappy'
-  );
-  const defenderCanCruel = defenderPlayer.activeCommandCards.some(
-    c => c.id.toString().split('-')[0].toLowerCase() === 'cruel'
-  );
-  const defenderCanRelentless = defenderPlayer.activeCommandCards.some(
-    c => c.id.toString().split('-')[0].toLowerCase() === 'relentless'
-  );
-
-  const hasHumanRerollOptions = 
-    (attackerPlayer.type === 'human' && (attackerCanCruel || attackerCanRelentless || attackerCanScrappy)) ||
-    (defenderPlayer.type === 'human' && (defenderCanCruel || defenderCanRelentless));
-  
-
-  set({
-    combatPhase: hasHumanRerollOptions ? 're-roll' : 'resolution',
-    pendingCombat: {
-      attackerShipId,
-      defenderShipId,
-      attackerOrigin,
-      targetPosition,
-      defenderHasDangerous: false,
-      attackerRoll: rolls.attackerRoll,
-      defenderRoll: rolls.defenderRoll,
-      attackerTotal: rolls.attackerTotal,
-      defenderTotal: rolls.defenderTotal,
-      attackerModifiers: rolls.attackerModifiers,
-      defenderModifiers: rolls.defenderModifiers,
-      rerollsUsed: { cruel: false, relentless: false, scrappy: false },
-      attackerCanCruel,
-      attackerCanRelentless,
-      attackerCanScrappy,
-      defenderCanCruel,
-      defenderCanRelentless,
+        if (result.completed && result.combatResult) {
+          get().setCombatResult(result.combatResult, result.data);
+        }
+      }
     },
-  });
-  // If no human has re-roll options, process AI re-rolls then go to resolution
-  if (!hasHumanRerollOptions) {
-    get().processAICombatRerolls();
-  }
-},
 
-useCombatReroll: (type: 'cruel' | 'relentless' | 'scrappy', initiatedBy: string) => {
-  const { engine, pendingCombat } = get();
-  if (!engine || !pendingCombat) return;
-
-  const result = engine.rerollCombat(
-    pendingCombat.attackerShipId,
-    pendingCombat.defenderShipId,
-    pendingCombat.attackerRoll,
-    pendingCombat.defenderRoll,
-    type,
-    initiatedBy
-  );
-
-  set({
-    pendingCombat: {
-      ...pendingCombat,
-      attackerRoll: result.attackerRoll,
-      defenderRoll: result.defenderRoll,
-      attackerTotal: result.attackerTotal,
-      defenderTotal: result.defenderTotal,
-      rerollsUsed: { ...pendingCombat.rerollsUsed, [type]: true },
+    setCombatResult: (combatResult: CombatResult) => {
+      set({
+        lastCombatResult: {
+          winner: combatResult.dangerousActivated ? 'none' : combatResult.winner,
+          attackerRoll: combatResult.attackerRoll,
+          defenderRoll: combatResult.defenderRoll,
+          attackerTotal: combatResult.attackerTotal,
+          defenderTotal: combatResult.defenderTotal,
+          loserNewShipValue: combatResult.defenderNewPipValue ?? combatResult.attackerNewPipValue ?? null,
+          loserPlayerId: combatResult.winner === 'attacker'
+            ? combatResult.defenderPlayerId
+            : combatResult.attackerPlayerId,
+          dangerousActivated: combatResult.dangerousActivated,
+        },
+      });
     },
-  });
-},
 
-skipRerolls: () => {
-  set({ combatPhase: 'resolution' });
-},
+    cancelCombat: () => {
+      const { engine } = get();
+      if (!engine) return;
 
-finalizeCombat: (moveToTarget: boolean) => {
-  const { engine, pendingCombat } = get();
-  if (!engine || !pendingCombat) return;
+      const result = engine.cancelCombat();
 
-  const result = engine.finalizeCombat(
-    pendingCombat.attackerShipId,
-    pendingCombat.defenderShipId,
-    pendingCombat.attackerRoll,
-    pendingCombat.defenderRoll,
-    pendingCombat.attackerTotal,
-    pendingCombat.defenderTotal,
-    moveToTarget
-  );
+      if (result.success) {
+        set({
+          gameState: result.data,
+          availableActions: engine.getAvailableActions(),
+        });
+      }
+    },
 
-  if (result.success) {
-    set({
-      gameState: result.data,
-      availableActions: engine.getAvailableActions(),
-      combatPhase: null,
-      pendingCombat: null,
-      lastCombatResult: {
-        winner: result.combatResult.winner,
-        attackerRoll: result.combatResult.attackerRoll,
-        defenderRoll: result.combatResult.defenderRoll,
-        attackerTotal: result.combatResult.attackerTotal,
-        defenderTotal: result.combatResult.defenderTotal,
-        loserNewShipValue: result.combatResult.defenderNewPipValue ?? result.combatResult.attackerNewPipValue ?? null,
-        loserPlayerId: result.combatResult.winner === 'attacker' 
-          ? pendingCombat.defenderShipId 
-          : pendingCombat.attackerShipId,
-      },
-    });
-  }
-},
+    // Handle Attack logic
+//     initiateAttack: (shipId, targetPosition) => {
+//       const { engine, gameState } = get();
+//       if (!engine || !gameState) return;
+
+//       const playerId = gameState.currentPlayerId;
+//       const result = engine.initiateAttack(playerId, shipId, targetPosition);
+//       if (!result.success) return;
+
+//       const { attackerShipId, defenderShipId, defenderHasDangerous } = result.data;
+//       const attackerShip = gameState.ships.find(s => s.id === attackerShipId)!;
+//       const defenderShip = gameState.ships.find(s => s.id === defenderShipId)!;
+//       const defenderPlayer = gameState.players.find(p => p.id === defenderShip.ownerId);
+
+//       if (defenderHasDangerous) {
+//         // Check if defender is AI
+//         if (defenderPlayer?.type === 'ai') {
+//           // AI decides immediately - skip Dangerous for MVP
+//           get().executeCombatRolls(attackerShipId, defenderShipId, attackerShip.position!, targetPosition);
+//         } else {
+//           // Human defender - show pre-combat modal
+//           set({
+//             combatPhase: 'pre-combat',
+//             pendingCombat: {
+//               attackerShipId,
+//               defenderShipId,
+//               attackerOrigin: attackerShip.position!,
+//               targetPosition,
+//               defenderHasDangerous: true,
+//               attackerRoll: 0,
+//               defenderRoll: 0,
+//               attackerTotal: 0,
+//               defenderTotal: 0,
+//               attackerModifiers: [],
+//               defenderModifiers: [],
+//               rerollsUsed: { cruel: false, relentless: false, scrappy: false },
+//               attackerCanCruel: false,
+//               attackerCanRelentless: false,
+//               attackerCanScrappy: false,
+//               defenderCanCruel: false,
+//               defenderCanRelentless: false,
+//             },
+//           });
+//         }
+//       } else {
+//         // No Dangerous - go straight to rolls
+//         get().executeCombatRolls(attackerShipId, defenderShipId, attackerShip.position!, targetPosition);
+//       }
+//     },
+
+// activateDangerous: () => {
+//   const { engine, pendingCombat } = get();
+//   if (!engine || !pendingCombat) return;
+
+//   const result = engine.resolveDangerous(
+//     engine.getState().currentPlayerId,
+//     pendingCombat.attackerShipId,
+//     pendingCombat.defenderShipId
+//   );
+
+//   if (result.success) {
+//     set({
+//       gameState: result.data,
+//       availableActions: engine.getAvailableActions(),
+//       combatPhase: null,
+//       pendingCombat: null,
+//       lastCombatResult: {
+//         winner: 'none',
+//         attackerRoll: 0,
+//         defenderRoll: 0,
+//         attackerTotal: 0,
+//         defenderTotal: 0,
+//         loserNewShipValue: null,
+//         loserPlayerId: null,
+//         dangerousActivated: true,
+//       },
+//     });
+//   }
+// },
+
+// skipDangerous: () => {
+//   const { pendingCombat } = get();
+//   if (!pendingCombat) return;
+//   get().executeCombatRolls(
+//     pendingCombat.attackerShipId, 
+//     pendingCombat.defenderShipId, 
+//     pendingCombat.attackerOrigin, 
+//     pendingCombat.targetPosition
+//   );
+// },
+
+// executeCombatRolls: (attackerShipId, defenderShipId, attackerOrigin, targetPosition) => {
+//   const { engine, gameState } = get();
+//   if (!engine || !gameState) return;
+
+//   const rolls = engine.rollCombat(attackerShipId, defenderShipId);
+  
+//   const attackerShip = gameState.ships.find(s => s.id === attackerShipId)!;
+//   const defenderShip = gameState.ships.find(s => s.id === defenderShipId)!;
+//   const attackerPlayer = gameState.players.find(p => p.id === attackerShip.ownerId)!;
+//   const defenderPlayer = gameState.players.find(p => p.id === defenderShip.ownerId)!;
+//   const isAttackerTurn = gameState.currentPlayerId === attackerPlayer.id;
+
+//   // Determine re-roll availability
+//   const attackerCanCruel = attackerPlayer.activeCommandCards.some(
+//     c => c.id.toString().split('-')[0].toLowerCase() === 'cruel'
+//   );
+//   const attackerCanRelentless = attackerPlayer.activeCommandCards.some(
+//     c => c.id.toString().split('-')[0].toLowerCase() === 'relentless'
+//   );
+//   const attackerCanScrappy = isAttackerTurn && attackerPlayer.activeCommandCards.some(
+//     c => c.id.toString().split('-')[0].toLowerCase() === 'scrappy'
+//   );
+//   const defenderCanCruel = defenderPlayer.activeCommandCards.some(
+//     c => c.id.toString().split('-')[0].toLowerCase() === 'cruel'
+//   );
+//   const defenderCanRelentless = defenderPlayer.activeCommandCards.some(
+//     c => c.id.toString().split('-')[0].toLowerCase() === 'relentless'
+//   );
+
+//   const hasHumanRerollOptions = 
+//     (attackerPlayer.type === 'human' && (attackerCanCruel || attackerCanRelentless || attackerCanScrappy)) ||
+//     (defenderPlayer.type === 'human' && (defenderCanCruel || defenderCanRelentless));
+  
+
+//   set({
+//     combatPhase: hasHumanRerollOptions ? 're-roll' : 'resolution',
+//     pendingCombat: {
+//       attackerShipId,
+//       defenderShipId,
+//       attackerOrigin,
+//       targetPosition,
+//       defenderHasDangerous: false,
+//       attackerRoll: rolls.attackerRoll,
+//       defenderRoll: rolls.defenderRoll,
+//       attackerTotal: rolls.attackerTotal,
+//       defenderTotal: rolls.defenderTotal,
+//       attackerModifiers: rolls.attackerModifiers,
+//       defenderModifiers: rolls.defenderModifiers,
+//       rerollsUsed: { cruel: false, relentless: false, scrappy: false },
+//       attackerCanCruel,
+//       attackerCanRelentless,
+//       attackerCanScrappy,
+//       defenderCanCruel,
+//       defenderCanRelentless,
+//     },
+//   });
+//   // If no human has re-roll options, process AI re-rolls then go to resolution
+//   if (!hasHumanRerollOptions) {
+//     get().processAICombatRerolls();
+//   }
+// },
+
+// useCombatReroll: (type: 'cruel' | 'relentless' | 'scrappy', initiatedBy: string) => {
+//   const { engine, pendingCombat } = get();
+//   if (!engine || !pendingCombat) return;
+
+//   const result = engine.rerollCombat(
+//     pendingCombat.attackerShipId,
+//     pendingCombat.defenderShipId,
+//     pendingCombat.attackerRoll,
+//     pendingCombat.defenderRoll,
+//     type,
+//     initiatedBy
+//   );
+
+//   set({
+//     pendingCombat: {
+//       ...pendingCombat,
+//       attackerRoll: result.attackerRoll,
+//       defenderRoll: result.defenderRoll,
+//       attackerTotal: result.attackerTotal,
+//       defenderTotal: result.defenderTotal,
+//       rerollsUsed: { ...pendingCombat.rerollsUsed, [type]: true },
+//     },
+//   });
+// },
+
+// skipRerolls: () => {
+//   set({ combatPhase: 'resolution' });
+// },
+
+// finalizeCombat: (moveToTarget: boolean) => {
+//   const { engine, pendingCombat } = get();
+//   if (!engine || !pendingCombat) return;
+
+//   const result = engine.finalizeCombat(
+//     pendingCombat.attackerShipId,
+//     pendingCombat.defenderShipId,
+//     pendingCombat.attackerRoll,
+//     pendingCombat.defenderRoll,
+//     pendingCombat.attackerTotal,
+//     pendingCombat.defenderTotal,
+//     moveToTarget
+//   );
+
+//   if (result.success) {
+//     set({
+//       gameState: result.data,
+//       availableActions: engine.getAvailableActions(),
+//       combatPhase: null,
+//       pendingCombat: null,
+//       lastCombatResult: {
+//         winner: result.combatResult.winner,
+//         attackerRoll: result.combatResult.attackerRoll,
+//         defenderRoll: result.combatResult.defenderRoll,
+//         attackerTotal: result.combatResult.attackerTotal,
+//         defenderTotal: result.combatResult.defenderTotal,
+//         loserNewShipValue: result.combatResult.defenderNewPipValue ?? result.combatResult.attackerNewPipValue ?? null,
+//         loserPlayerId: result.combatResult.winner === 'attacker' 
+//           ? pendingCombat.defenderShipId 
+//           : pendingCombat.attackerShipId,
+//       },
+//     });
+//   }
+// },
 
     // Enter Deploy mode
     enterDeployMode: (scrapyardIndex = 0, freeDeployPositions?: Position[]) => {
@@ -1074,119 +1157,121 @@ endTurn: async () => {
       }
     },
 
+    // Commented out processAICombat and processAICombatRerolls - TO BE REMOVED ONCE COMBAT REFACTOR IS TESTED - OLD METHODS FROM LEGACY COMBAT IMPLEMENTATION - AI COMBAT IS NOW HANDLED IN ENGINE advanceCombat METHOD
+    
     // Handle AI Combat
-    processAICombat: () => {
-      const { combatPhase, pendingCombat, gameState } = get();
-      if (!combatPhase || !pendingCombat || !gameState) return;
+    // processAICombat: () => {
+    //   const { combatPhase, pendingCombat, gameState } = get();
+    //   if (!combatPhase || !pendingCombat || !gameState) return;
 
-      const defenderShip = gameState.ships.find(s => s.id === pendingCombat.defenderShipId);
-      const defenderPlayer = gameState.players.find(p => p.id === defenderShip?.ownerId);
-      const isAIDefender = defenderPlayer?.type === 'ai';
+    //   const defenderShip = gameState.ships.find(s => s.id === pendingCombat.defenderShipId);
+    //   const defenderPlayer = gameState.players.find(p => p.id === defenderShip?.ownerId);
+    //   const isAIDefender = defenderPlayer?.type === 'ai';
 
-      const attackerShip = gameState.ships.find(s => s.id === pendingCombat.attackerShipId);
-      const attackerPlayer = gameState.players.find(p => p.id === attackerShip?.ownerId);
-      const isAIAttacker = attackerPlayer?.type === 'ai';
+    //   const attackerShip = gameState.ships.find(s => s.id === pendingCombat.attackerShipId);
+    //   const attackerPlayer = gameState.players.find(p => p.id === attackerShip?.ownerId);
+    //   const isAIAttacker = attackerPlayer?.type === 'ai';
 
-      if (combatPhase === 'pre-combat') {
-        if (isAIDefender) {
-          get().skipDangerous();
-        }
-        return;
-      }
+    //   if (combatPhase === 'pre-combat') {
+    //     if (isAIDefender) {
+    //       get().skipDangerous();
+    //     }
+    //     return;
+    //   }
 
-      if (combatPhase === 're-roll') {
-        const { 
-          attackerTotal, defenderTotal, rerollsUsed,
-          attackerCanCruel, attackerCanRelentless, attackerCanScrappy,
-          defenderCanCruel, defenderCanRelentless
-        } = pendingCombat;
+    //   if (combatPhase === 're-roll') {
+    //     const { 
+    //       attackerTotal, defenderTotal, rerollsUsed,
+    //       attackerCanCruel, attackerCanRelentless, attackerCanScrappy,
+    //       defenderCanCruel, defenderCanRelentless
+    //     } = pendingCombat;
 
-        const attackerWinning = attackerTotal <= defenderTotal;
+    //     const attackerWinning = attackerTotal <= defenderTotal;
 
-        if (isAIAttacker && !attackerWinning) {
-          if (attackerCanCruel && !rerollsUsed.cruel) {
-            get().useCombatReroll('cruel', attackerPlayer!.id);
-            return;
-          }
-          if (attackerCanRelentless && !rerollsUsed.relentless) {
-            get().useCombatReroll('relentless', attackerPlayer!.id);
-            return;
-          }
-          if (attackerCanScrappy && !rerollsUsed.scrappy) {
-            get().useCombatReroll('scrappy', attackerPlayer!.id);
-            return;
-          }
-        }
+    //     if (isAIAttacker && !attackerWinning) {
+    //       if (attackerCanCruel && !rerollsUsed.cruel) {
+    //         get().useCombatReroll('cruel', attackerPlayer!.id);
+    //         return;
+    //       }
+    //       if (attackerCanRelentless && !rerollsUsed.relentless) {
+    //         get().useCombatReroll('relentless', attackerPlayer!.id);
+    //         return;
+    //       }
+    //       if (attackerCanScrappy && !rerollsUsed.scrappy) {
+    //         get().useCombatReroll('scrappy', attackerPlayer!.id);
+    //         return;
+    //       }
+    //     }
 
-        if (isAIDefender && attackerWinning) {
-          if (defenderCanCruel && !rerollsUsed.cruel) {
-            get().useCombatReroll('cruel', defenderPlayer!.id);
-            return;
-          }
-          if (defenderCanRelentless && !rerollsUsed.relentless) {
-            get().useCombatReroll('relentless', defenderPlayer!.id);
-            return;
-          }
-        }
+    //     if (isAIDefender && attackerWinning) {
+    //       if (defenderCanCruel && !rerollsUsed.cruel) {
+    //         get().useCombatReroll('cruel', defenderPlayer!.id);
+    //         return;
+    //       }
+    //       if (defenderCanRelentless && !rerollsUsed.relentless) {
+    //         get().useCombatReroll('relentless', defenderPlayer!.id);
+    //         return;
+    //       }
+    //     }
 
-        get().skipRerolls();
-        return;
-      }
+    //     get().skipRerolls();
+    //     return;
+    //   }
 
-      if (combatPhase === 'resolution') {
-        if (isAIAttacker) {
-          const attackerWins = pendingCombat.attackerTotal <= pendingCombat.defenderTotal;
-          get().finalizeCombat(attackerWins);
-        } else {
-          get().finalizeCombat(true);
-        }
-        return;
-      }
-    },
+    //   if (combatPhase === 'resolution') {
+    //     if (isAIAttacker) {
+    //       const attackerWins = pendingCombat.attackerTotal <= pendingCombat.defenderTotal;
+    //       get().finalizeCombat(attackerWins);
+    //     } else {
+    //       get().finalizeCombat(true);
+    //     }
+    //     return;
+    //   }
+    // },
 
     // Handle AI Combat Rerolls
-    processAICombatRerolls: () => {
-      const { pendingCombat, gameState } = get();
-      if (!pendingCombat || !gameState) return;
+    // processAICombatRerolls: () => {
+    //   const { pendingCombat, gameState } = get();
+    //   if (!pendingCombat || !gameState) return;
 
-      const attackerShip = gameState.ships.find(s => s.id === pendingCombat.attackerShipId);
-      const defenderShip = gameState.ships.find(s => s.id === pendingCombat.defenderShipId);
-      const attackerPlayer = gameState.players.find(p => p.id === attackerShip?.ownerId);
-      const defenderPlayer = gameState.players.find(p => p.id === defenderShip?.ownerId);
+    //   const attackerShip = gameState.ships.find(s => s.id === pendingCombat.attackerShipId);
+    //   const defenderShip = gameState.ships.find(s => s.id === pendingCombat.defenderShipId);
+    //   const attackerPlayer = gameState.players.find(p => p.id === attackerShip?.ownerId);
+    //   const defenderPlayer = gameState.players.find(p => p.id === defenderShip?.ownerId);
 
-      let { attackerTotal, defenderTotal, rerollsUsed, attackerCanCruel, attackerCanRelentless, attackerCanScrappy, defenderCanCruel, defenderCanRelentless } = pendingCombat;
+    //   let { attackerTotal, defenderTotal, rerollsUsed, attackerCanCruel, attackerCanRelentless, attackerCanScrappy, defenderCanCruel, defenderCanRelentless } = pendingCombat;
       
-      const attackerWinning = attackerTotal <= defenderTotal;
+    //   const attackerWinning = attackerTotal <= defenderTotal;
 
-      // AI attacker re-rolls if losing
-      if (attackerPlayer?.type === 'ai' && !attackerWinning) {
-        if (attackerCanCruel && !rerollsUsed.cruel) {
-          get().useCombatReroll('cruel', attackerPlayer.id);
-          rerollsUsed = { ...rerollsUsed, cruel: true };
-        } else if (attackerCanRelentless && !rerollsUsed.relentless) {
-          get().useCombatReroll('relentless', attackerPlayer.id);
-          rerollsUsed = { ...rerollsUsed, relentless: true };
-        } else if (attackerCanScrappy && !rerollsUsed.scrappy) {
-          get().useCombatReroll('scrappy', attackerPlayer.id);
-          rerollsUsed = { ...rerollsUsed, scrappy: true };
-        }
-      }
+    //   // AI attacker re-rolls if losing
+    //   if (attackerPlayer?.type === 'ai' && !attackerWinning) {
+    //     if (attackerCanCruel && !rerollsUsed.cruel) {
+    //       get().useCombatReroll('cruel', attackerPlayer.id);
+    //       rerollsUsed = { ...rerollsUsed, cruel: true };
+    //     } else if (attackerCanRelentless && !rerollsUsed.relentless) {
+    //       get().useCombatReroll('relentless', attackerPlayer.id);
+    //       rerollsUsed = { ...rerollsUsed, relentless: true };
+    //     } else if (attackerCanScrappy && !rerollsUsed.scrappy) {
+    //       get().useCombatReroll('scrappy', attackerPlayer.id);
+    //       rerollsUsed = { ...rerollsUsed, scrappy: true };
+    //     }
+    //   }
 
-      // Refresh state after potential re-roll
-      const updatedCombat = get().pendingCombat;
-      if (!updatedCombat) return;
+    //   // Refresh state after potential re-roll
+    //   const updatedCombat = get().pendingCombat;
+    //   if (!updatedCombat) return;
       
-      const newAttackerWinning = updatedCombat.attackerTotal <= updatedCombat.defenderTotal;
+    //   const newAttackerWinning = updatedCombat.attackerTotal <= updatedCombat.defenderTotal;
 
-      // AI defender re-rolls if losing
-      if (defenderPlayer?.type === 'ai' && newAttackerWinning) {
-        if (defenderCanCruel && !updatedCombat.rerollsUsed.cruel) {
-          get().useCombatReroll('cruel', defenderPlayer.id);
-        } else if (defenderCanRelentless && !updatedCombat.rerollsUsed.relentless) {
-          get().useCombatReroll('relentless', defenderPlayer.id);
-        }
-      }
-    },
+    //   // AI defender re-rolls if losing
+    //   if (defenderPlayer?.type === 'ai' && newAttackerWinning) {
+    //     if (defenderCanCruel && !updatedCombat.rerollsUsed.cruel) {
+    //       get().useCombatReroll('cruel', defenderPlayer.id);
+    //     } else if (defenderCanRelentless && !updatedCombat.rerollsUsed.relentless) {
+    //       get().useCombatReroll('relentless', defenderPlayer.id);
+    //     }
+    //   }
+    // },
 
 
     // UI actions

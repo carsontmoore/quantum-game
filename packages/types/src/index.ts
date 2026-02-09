@@ -264,7 +264,7 @@ export interface Player {
   cubesPlacedThisTurn: number;     // For advance card rewards
   achievedBreakthroughThisTurn: boolean;
   bonusMoves: number;
-  hasUsedFlexibleThiisTurn: boolean;
+  hasUsedFlexibleThisTurn: boolean;
 }
 
 // =============================================================================
@@ -281,34 +281,28 @@ export interface CardState {
   commandDiscard: AdvanceCard[];
 }
 
+// Removing CombatState and CombatEffect - we now use PendingCombat on GameState directly
 /** Combat state for resolving battles */
-export interface CombatState {
-  attackerId: string;              // Player ID
-  defenderId: string;              // Player ID
-  attackerShipId: string;
-  defenderShipId: string;
-  attackerRoll: number | null;
-  defenderRoll: number | null;
-  attackerTotal: number | null;
-  defenderTotal: number | null;
-  attackerOriginPosition: Position;
-  phase: CombatPhase;
-  pendingEffects: CombatEffect[];  // Card effects to resolve
-}
+// export interface CombatState {
+//   attackerId: string;              // Player ID
+//   defenderId: string;              // Player ID
+//   attackerShipId: string;
+//   defenderShipId: string;
+//   attackerRoll: number | null;
+//   defenderRoll: number | null;
+//   attackerTotal: number | null;
+//   defenderTotal: number | null;
+//   attackerOriginPosition: Position;
+//   phase: CombatPhase;
+//   pendingEffects: CombatEffect[];  // Card effects to resolve
+// }
 
-export enum CombatPhase {
-  INITIATED = 'initiated',
-  ROLLING = 'rolling',
-  APPLYING_MODIFIERS = 'applying_modifiers',
-  AWAITING_DANGEROUS_CHOICE = 'awaiting_dangerous_choice',  // Defender has Dangerous card
-  RESOLVED = 'resolved',
-}
 
-export interface CombatEffect {
-  type: string;
-  playerId: string;
-  data?: Record<string, unknown>;
-}
+// export interface CombatEffect {
+//   type: string;
+//   playerId: string;
+//   data?: Record<string, unknown>;
+// }
 
 /** Map configuration */
 export interface MapConfig {
@@ -342,6 +336,10 @@ export interface GameState {
   currentPlayerId: string;
   currentPhase: TurnPhase;
   turnOrder: string[];            // Player IDs in turn order
+
+  // Combat tracking
+  combatPhase: CombatPhase;
+  pendingCombat: PendingCombat | null;
   
   // Board state
   tiles: Tile[];
@@ -353,8 +351,9 @@ export interface GameState {
   // Player states
   players: Player[];
   
+  // Removing activeCombat because combatPhase and pendingCombat directly on GameState
   // Combat (null if no active combat)
-  activeCombat: CombatState | null;
+  // activeCombat: CombatState | null;
   
   // Action log for replay/undo
   actionLog: GameAction[];
@@ -410,8 +409,12 @@ export interface CombatResult {
   defenderTotal: number;
   winner: 'attacker' | 'defender';
   attackerFinalPosition: Position;
+  attackerNewPipValue: ShipType | null;  // If destroyed, what they rolled
   defenderNewPipValue: ShipType | null;  // If destroyed, what they rolled
+  attackerPlayerId: string;
+  defenderPlayerId: string;
   effectsApplied: string[];
+  dangerousActivated?: boolean;
 }
 
 export interface ConstructAction extends BaseAction {
@@ -515,6 +518,62 @@ export type GameAction =
   | SelectAdvanceCardAction
   | DiscardCommandAction
   | EndTurnAction;
+
+// ===========================================================================
+// COMBAT TYPES
+// ===========================================================================
+
+export type CombatPhase = 'pre-combat' | 'rolls' | 're-roll' | 'resolution' | null;
+
+export interface PendingCombat {
+  attackerShipId: string;
+  defenderShipId: string;
+  attackerPlayerId: string;
+  defenderPlayerId: string;
+  attackerOrigin: Position;
+  targetPosition: Position;
+  defenderHasDangerous: boolean;
+  attackerRoll: number;
+  defenderRoll: number;
+  attackerTotal: number;
+  defenderTotal: number;
+  attackerModifiers: string[];
+  defenderModifiers: string[];
+  rerollsUsed: { cruel: boolean; relentless: boolean; scrappy: boolean };
+  attackerCanCruel: boolean;
+  attackerCanRelentless: boolean;
+  attackerCanScrappy: boolean;
+  defenderCanCruel: boolean;
+  defenderCanRelentless: boolean;
+}
+
+export type CombatInput =
+  | { type: 'dangerous'; activate: boolean }
+  | { type: 'reroll'; rerollType: 'cruel' | 'relentless' | 'scrappy'; playerId: string }
+  | { type: 'skipRerolls' }
+  | { type: 'finalize'; moveToTarget: boolean };
+
+export interface CombatInputRequest {
+  phase: CombatPhase;
+  awaitingPlayerId: string;
+  options: {
+    canActivateDangerous?: boolean;
+    canSkipDangerous?: boolean;
+    availableRerolls?: Array<{ type: 'cruel' | 'relentless' | 'scrappy'; playerId: string }>;
+    canSkipRerolls?: boolean;
+    canMoveToTarget?: boolean;
+    canStayInPlace?: boolean;
+  };
+}
+
+export interface CombatAdvanceResult {
+  success: boolean;
+  error?: string;
+  data?: GameState;
+  combatResult?: CombatResult;
+  needsInput?: CombatInputRequest;
+  completed: boolean;
+}
 
 // =============================================================================
 // API / EVENTS

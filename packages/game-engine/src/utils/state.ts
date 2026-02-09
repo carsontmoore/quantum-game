@@ -262,11 +262,12 @@ export function createGame(options: CreateGameOptions): GameState {
     currentPlayerId: turnOrder[0],
     currentPhase: TurnPhase.ACTIONS,
     turnOrder,
+    combatPhase: null,
+    pendingCombat: null,
     tiles,
     ships,
     cards,
     players,
-    activeCombat: null,
     actionLog: [],
   };
 }

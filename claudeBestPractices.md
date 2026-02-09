@@ -79,3 +79,40 @@ When referencing variables across multiple implementation steps, use the exact n
 Don't reference methods, state properties, or components that were planned but may not have been implemented. Confirm existence before building on them.
 
 **Example:** Referenced `executeReorganization` without confirming it had been added to the gameStore.
+
+---
+
+## 11. No Shortcuts Under Any Circumstances
+
+Never accept "simpler", "faster", or "for now" as justification for incorrect types, missing verifications, or `as any` casts. These are red flags that Claude is cutting corners.
+
+---
+
+## 12. Long Session Degradation
+
+Claude's reliability degrades in very long sessions. For major refactors:
+- Commit working state before starting
+- Break into discrete steps with verification
+- Start fresh session if context feels uncertain
+
+---
+
+## 13. Verify Before Trust
+
+Before implementing Claude's suggestions for refactors that touch multiple files:
+- Ask Claude to list all files being modified
+- Ask Claude to confirm it has verified existing types/implementations
+- Ask Claude to show the checklist it followed
+
+---
+
+## 14. Red Flag Phrases
+
+Stop immediately if Claude says:
+- "out of laziness"
+- "for simplicity"
+- "as any"
+- "we can fix this later"
+- "should work"
+
+These indicate Claude is guessing rather than verifying.
