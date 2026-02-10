@@ -531,6 +531,7 @@ export interface PendingCombat {
   attackerPlayerId: string;
   defenderPlayerId: string;
   attackerOrigin: Position;
+  attackerLaunchPosition: Position;
   targetPosition: Position;
   defenderHasDangerous: boolean;
   attackerRoll: number;

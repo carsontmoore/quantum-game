@@ -801,12 +801,29 @@ initiateAttack(
 
   const defenderHasDangerous = this.hasCommandCard(defenderPlayer, 'dangerous');
 
+  // Calculate path to target to find attack launch position
+  const allowDiagonal = attackerShip.pipValue === ShipType.INTERCEPTOR;
+  const path = getMovePath(attackerShip, targetPosition, this.state, allowDiagonal);
+
+  // Attack launch position is the second-to-last position in path, or if path has only 1 element (target), ship is already adjacent
+  let attackerLaunchPosition: Position;
+  if (path && path.length >= 2) {
+    attackerLaunchPosition = path[path.length - 2];
+  } else if (path && path.length === 1) {
+    // Ship is already adjacent to target
+    attackerLaunchPosition = attackerShip.position!;
+  } else {
+    // Fallback (shouldn't happen if validation passed)
+    attackerLaunchPosition = attackerShip.position!;
+  }
+
   this.state.pendingCombat = {
     attackerShipId: shipId,
     defenderShipId: defenderShip.id,
     attackerPlayerId: playerId,
     defenderPlayerId: defenderShip.ownerId,
     attackerOrigin: attackerShip.position!,
+    attackerLaunchPosition,
     targetPosition,
     defenderHasDangerous,
     attackerRoll: 0,
@@ -1302,6 +1319,7 @@ private resolveFinalize(moveToTarget: boolean): CombatAdvanceResult {
   const defenderShip = getShip(this.state, defenderShipId)!;
   const attackerPlayer = getPlayer(this.state, attackerPlayerId)!;
   const defenderPlayer = getPlayer(this.state, defenderPlayerId)!;
+  const { attackerLaunchPosition } = this.state.pendingCombat;
 
   // Determine winner - Stubborn modifies tie rule
   const defenderHasStubbornCard = this.hasCommandCard(defenderPlayer, 'stubborn');
@@ -1327,13 +1345,15 @@ private resolveFinalize(moveToTarget: boolean): CombatAdvanceResult {
 
     const defenderIndex = this.state.ships.findIndex(s => s.id === defenderShip.id);
     this.state.ships.splice(defenderIndex, 1);
-
-    attackerFinalPosition = moveToTarget ? targetPosition : attackerOrigin;
+   
+    attackerFinalPosition = moveToTarget ? targetPosition : attackerLaunchPosition;
     attackerShip.position = attackerFinalPosition;
     attackerShip.hasMovedThisTurn = true;
     attackerPlayer.dominanceCounter += 1;
   } else {
-    attackerFinalPosition = attackerOrigin;
+    // Defender wins - attacker moved to launch position but failed to take target
+    attackerFinalPosition = attackerLaunchPosition;
+    attackerShip.position = attackerFinalPosition; // Move to launch position
 
     if (defenderHasStubbornCard) {
       attackerNewPipValue = rollDie();
@@ -1455,7 +1475,7 @@ attack(
     // Place cube
     tile.quantumCube = playerId;
     player.quantumCubesRemaining -= 1;
-    player.actionsRemaining -= 1;
+    player.actionsRemaining -= 2;
     player.cubesPlacedThisTurn += 1;
     
     const action: ConstructAction = {

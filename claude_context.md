@@ -13,50 +13,45 @@ Quantum is a turn-based strategy board game implementation with:
 3. For any implementation, ask to see existing code before suggesting changes
 
 ## Last Session Completed
-Major combat system refactor to single entry point pattern:
-- Combat logic moved entirely into game engine
-- Engine methods: initiateAttack, advanceCombat, cancelCombat (+ private phase handlers)
-- Store simplified to thin wrappers: initiateAttack, submitCombatInput, setCombatResult, cancelCombat
-- Combat state (combatPhase, pendingCombat) now lives on GameState, not store
-- CombatResultModal reads from gameState, uses submitCombatInput for all player choices
-- AI combat handled automatically within engine's advanceCombat loop
-- Legacy attack() method preserved for AI compatibility
 
-Command cards implemented:
-- Group 1 (start-of-turn): Brilliant, Curious
-- Group 2 (constant modifiers): Agile, Energetic, Stealthy, Eager, Precocious, Intelligent, Ingenious, Flexible
-- Group 3 (combat modifiers): Ferocious, Strategic, Rational, Stubborn, Dangerous, Cruel, Relentless, Scrappy
+### Bug Fixes Implemented
+1. **Deploy mode persistence** - `exitDeployMode()` now called after successful normal deploy in `performAction`
+2. **ActionBar disabled after combat** - Added `isLoading: false` to `initiateAttack` and `submitCombatInput` in gameStore
+3. **"Stay in place" wrong position** - Added `attackerLaunchPosition` to `PendingCombat`, calculated from movement path in `initiateAttack`
+4. **Attacker position on failed attack** - `resolveFinalize` now moves attacker to launch position regardless of outcome
+5. **Construct cost** - Engine's `construct` method now deducts 2 actions (was incorrectly deducting 1)
+6. **Deploy button enabled with 0 actions** - ActionBar now checks `actionsRemaining` with Eager card exception
+7. **Stale Industrious reference** - Removed placeholder logic from `validateConstruct`
 
-Key architectural decisions:
-- Single advanceCombat(input?) entry point handles all combat progression
-- Engine advances automatically until human input needed, returns needsInput describing what's required
-- AI decisions made inline during advanceCombat loop
-- Stubborn edge case: action deducted before ship removal, hasMovedThisTurn only set if ship not destroyed
+### Files Modified
+- `packages/types/src/index.ts` - Added `attackerLaunchPosition: Position` to PendingCombat interface
+- `packages/game-engine/src/index.ts` - initiateAttack, resolveFinalize, construct methods
+- `packages/game-engine/src/validation/actions.ts` - validateConstruct cleanup
+- `apps/web/src/stores/gameStore.ts` - performAction deploy case, initiateAttack, submitCombatInput
+- `apps/web/src/components/ActionBar.tsx` - Deploy button disabled logic
+
+### Key Architectural Insight
+Attack movement is implicit - player clicks enemy ship, path is calculated, and `attackerLaunchPosition` (penultimate position in path) is stored. This is the adjacent square from which attack is launched. Both "stay in place" and failed attacks use this position, never the turn origin.
 
 ## Current State
-- Combat refactor complete but untested
-- Legacy combat code preserved as comments for potential rollback
+- Core deploy, combat positioning, and construct mechanics now working correctly
+- Combat refactor (single entry point pattern) functional but display issues remain
 - 18 of 31 Command cards implemented
 - All 6 Gambit cards implemented
 
 ## Immediate Next Steps
-1. Test combat refactor (human vs AI, AI vs human, hot-seat, all combat card combinations)
-2. Consider unit tests for engine combat methods given refactor complexity
-3. Continue with Group 4, 5, 6 Command cards after testing confirms stability
+1. **Test combat display issues** - Rolls phase may be bypassing, dice details not showing in modal
+2. **Continue combat testing checklist** - Verify all card modifier interactions
+3. **Implement ship abilities** - Battlestation Strike, Flagship Transport, etc. (see roadmap)
+4. **Command cards Groups 4-6** - Remaining 13 cards
+
+## Known Limitations
+- Multiple valid attack launch positions: Path algorithm picks deterministically, player cannot choose
+- Future enhancement: Two-step attack flow allowing player to select launch position
 
 ## Important Context
-This session encountered significant issues with context drift and errors in suggested code. Key lessons:
-- Always verify existing type definitions before modifying
-- Use domain types (ShipType, Position) not primitives
-- Never use `as any` - fix the actual type
-- Order state mutations correctly (deduct before remove)
-- Verify entity exists before mutating it
-
-The CLAUDE_RULES.md file contains non-negotiable principles learned from this session.
-
-## Files Modified This Session
-- packages/types/src/index.ts
-- packages/game-engine/src/index.ts
-- packages/game-engine/src/utils/state.ts
-- apps/web/src/stores/gameStore.ts
-- apps/web/src/components/CombatResultModal.tsx
+Session reinforced importance of:
+- Verifying existing code before suggesting changes
+- Tracing state through entire flow (store → engine → validation)
+- Checking both success and failure paths for state updates
+- Not assuming placeholder/fabricated content is still in codebase

@@ -390,7 +390,205 @@ Context drift in long sessions. Claude prioritized completion speed over correct
 
 
 
+---
 
+## 14. Similar Variable Names Cause Confusion
+
+**Date:** February 2026  
+**Context:** Debugging deploy mode persistence
+
+### The Problem
+User confirmed `isFreeDeployMode` was being reset to `false`, but the bug persisted. The actual issue was `isDeployMode` (a different variable) not being reset.
+
+### The Rule
+When debugging state issues:
+1. List ALL related state variables explicitly
+2. Verify each one individually
+3. Don't assume similar names mean the same thing
+
+### Example
+```typescript
+// These are TWO DIFFERENT variables:
+isDeployMode: boolean;      // Whether deploy UI is active
+isFreeDeployMode: boolean;  // Whether deploy is free (from Gambit cards)
+
+// User said "isFreeDeployMode is false" 
+// Claude assumed this meant deploy mode was exited
+// Actually isDeployMode was still true
+```
+
+---
+
+## 15. Initialization Values Matter
+
+**Date:** February 2026  
+**Context:** Deploy button always triggering deploy action
+
+### The Problem
+Condition `selectedScrapyardIndex !== null` was always true because the variable was initialized to `0`, not `null`.
+
+### The Rule
+Check initialization values when debugging conditional logic. A falsy check (`!== null`, `!== undefined`) behaves differently for `0` vs `null`.
+
+### Example
+```typescript
+// Store initial state
+selectedScrapyardIndex: 0,  // Initialized to 0, not null!
+
+// In click handler
+if (isDeployMode && selectedScrapyardIndex !== null) {
+  // This ALWAYS runs because 0 !== null is true
+}
+```
+
+---
+
+## 16. isLoading as an Action Gate
+
+**Date:** February 2026  
+**Context:** ActionBar disabled after combat
+
+### The Problem
+`performAction` sets `isLoading: true` at the start. The attack case calls `initiateAttack` and returns early - never reaching the code that sets `isLoading: false`.
+
+### The Rule
+When a method sets a blocking flag (`isLoading`, `isProcessing`, etc.), trace ALL exit paths to ensure the flag is reset. Early returns and delegated methods are common culprits.
+
+### Example
+```typescript
+performAction: async (action) => {
+  set({ isLoading: true });  // Set at start
+  
+  switch (action.type) {
+    case 'attack':
+      get().initiateAttack(...);
+      return true;  // Early return - isLoading never reset!
+    // ...
+  }
+  
+  set({ isLoading: false });  // Only reached for non-attack actions
+}
+
+// Fix: Reset isLoading inside initiateAttack
+initiateAttack: (shipId, targetPosition) => {
+  // ... logic
+  set({ gameState: result.data, isLoading: false });
+}
+```
+
+---
+
+## 17. Attack Launch Position (Implicit Movement)
+
+**Date:** February 2026  
+**Context:** "Stay in place" returned ship to turn origin instead of attack position
+
+### The Problem
+In physical Quantum, you move to an adjacent square then attack. Digital version allows clicking directly on enemy, but the ship still needs to end up at an adjacent position after combat.
+
+### The Solution
+Calculate the movement path, extract the penultimate position as "launch position":
+```typescript
+const path = getMovePath(attackerShip, targetPosition, state, allowDiagonal);
+
+// Path: [pos1, pos2, targetPos] → launch position is pos2
+// Path: [targetPos] → already adjacent, launch position is current position
+let attackerLaunchPosition: Position;
+if (path && path.length >= 2) {
+  attackerLaunchPosition = path[path.length - 2];
+} else {
+  attackerLaunchPosition = attackerShip.position!;
+}
+```
+
+### Key Insight
+- `attackerOrigin` = where ship started its turn
+- `attackerLaunchPosition` = adjacent square from which attack is launched
+- "Stay in place" and failed attacks use `attackerLaunchPosition`, never `attackerOrigin`
+
+---
+
+## 18. Validation and Execution Must Match
+
+**Date:** February 2026  
+**Context:** Construct deducted 1 action instead of 2
+
+### The Problem
+`validateConstruct` correctly required 2 actions, but the engine's `construct` method only deducted 1.
+
+### The Rule
+When an action has a cost, verify BOTH:
+1. Validation checks the player has enough
+2. Execution deducts the correct amount
+
+### Example
+```typescript
+// Validation (actions.ts)
+if (player.actionsRemaining < 2) {
+  return { valid: false, reason: 'Need 2 actions to construct' };
+}
+
+// Execution (engine/index.ts) - MUST MATCH
+player.actionsRemaining -= 2;  // Not -= 1!
+```
+
+---
+
+## 19. Card Effects Are Scattered By Phase
+
+**Date:** February 2026  
+**Context:** Understanding where to implement new card effects
+
+### The Pattern
+Card effects trigger at different phases, so implementation is scattered:
+
+| Phase | Location | Example Cards |
+|-------|----------|---------------|
+| Turn start | `engine.startTurn()` | Brilliant, Curious |
+| Movement | `findReachablePositions()` | Agile, Energetic |
+| Deploy validation | `validateDeploy()` | Stealthy |
+| Deploy execution | `deploy()` | Eager |
+| Construct | `validateConstruct()`, `construct()` | Intelligent, Ingenious |
+| Combat rolls | `executeRolls()` | Ferocious, Rational, Strategic |
+| Combat re-roll | `executeReroll()` | Cruel, Relentless, Scrappy |
+| Combat resolution | `resolveFinalize()` | Stubborn, Dangerous |
+
+### The Rule
+When implementing a new card:
+1. Identify which phase it affects
+2. Find the corresponding method
+3. Check if validation, execution, or both need modification
+
+---
+
+## 20. Destructuring Assignment Syntax
+
+**Date:** February 2026  
+**Context:** Understanding bracket syntax in variable declarations
+
+### The Syntax
+```typescript
+const { attackerLaunchPosition } = this.state.pendingCombat;
+
+// Is equivalent to:
+const attackerLaunchPosition = this.state.pendingCombat.attackerLaunchPosition;
+```
+
+### Multiple Properties
+```typescript
+const { 
+  attackerShipId, 
+  defenderShipId, 
+  targetPosition 
+} = this.state.pendingCombat;
+
+// Extracts three variables at once
+```
+
+### Why Use It
+- Shorter syntax for extracting multiple properties
+- Common pattern in React/TypeScript codebases
+- Makes code more readable when accessing many properties from one object
 
 
 

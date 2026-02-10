@@ -20,6 +20,9 @@ export function ActionBar() {
   const canReconfigure = selectedShipId && availableActions?.canReconfigure.includes(selectedShipId);
   const canConstruct = availableActions && availableActions.canConstruct.length > 0;
   const isAITurn = currentPlayer.type === 'ai';
+  const hasEager = currentPlayer.activeCommandCards.some(
+    c => c.id.toString().split('-')[0].toLowerCase() === 'eager'
+  );
 
   return (
     <div className="mt-4 bg-slate-800/50 rounded-xl p-4 border border-slate-700">
@@ -55,16 +58,16 @@ export function ActionBar() {
         <div className="flex items-center gap-2">
           {/* Deploy */}
           <button
-            onClick={() => {
-              // TODO: Implement deploy action - select ship from scrapyard, then select orbital position
+            onClick={() => {          
               if (isDeployMode) {
                 exitDeployMode();
               } else {
                 enterDeployMode(0);
               }
-              console.log('Deploy clicked - needs implementation');
             }}
-            disabled={currentPlayer?.scrapyard.length === 0}
+            disabled={
+              currentPlayer?.scrapyard.length === 0 || (!hasEager && currentPlayer.actionsRemaining < 1)
+            }
             className={clsx(
               'flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors',
               currentPlayer?.scrapyard.length === 0

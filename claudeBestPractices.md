@@ -116,3 +116,107 @@ Stop immediately if Claude says:
 - "should work"
 
 These indicate Claude is guessing rather than verifying.
+
+---
+
+---
+
+## 15. When User Challenges a Suggestion
+
+When the user questions or pushes back on a suggestion:
+
+1. **Re-read their statement carefully** - Look for specific variable names, not what you assumed they said
+2. **Distinguish similar names** - `isDeployMode` vs `isFreeDeployMode` are different
+3. **Ask clarifying questions** rather than defending the suggestion
+4. **Acknowledge when caught making assumptions** - Don't double down
+
+**Example:**
+```
+User: "isFreeDeployMode is being reset to false"
+Claude assumed: Deploy mode is properly exiting
+Reality: isDeployMode (different variable) was still true
+
+Correct response: "You confirmed isFreeDeployMode is false. Did you 
+also verify isDeployMode? They're separate variables."
+```
+
+---
+
+## 16. Don't Hallucinate Placeholder Content
+
+Never reference cards, features, or code that may have been placeholders or fabricated content. When suggesting code that references specific cards or features:
+
+1. Ask if the card/feature still exists
+2. Verify the exact property names and values
+3. Don't assume naming conventions
+
+**Example:**
+```
+❌ WRONG: "Check for Industrious card which reduces construct cost"
+   (Industrious was a placeholder that was removed)
+
+✅ CORRECT: "What cards currently modify construct cost? I want to 
+   verify before suggesting the implementation."
+```
+
+---
+
+## 17. Code Fix Patterns - Quick Reference
+
+### isLoading Reset Pattern
+```typescript
+// In methods that branch away from main performAction flow:
+if (result.success) {
+  set({ gameState: result.data, isLoading: false });
+} else {
+  set({ isLoading: false, error: result.error });
+}
+```
+
+### Mode Flag Cleanup Pattern
+```typescript
+// After action that should exit a mode:
+result = engine.deploy(...);
+if (result.success) {
+  get().exitDeployMode();  // Explicit cleanup
+}
+```
+
+### Button Disabled Pattern
+```typescript
+// Consider: resource availability + action count + card modifiers
+const hasCardThatMakesFree = currentPlayer.activeCommandCards.some(
+  c => c.id.toString().split('-')[0].toLowerCase() === 'cardname'
+);
+
+disabled={
+  resourceEmpty || 
+  (!hasCardThatMakesFree && actionsRemaining < cost)
+}
+```
+
+---
+
+## 18. Explain Unfamiliar Syntax
+
+When using syntax that may be unfamiliar (destructuring, spread operators, etc.), briefly explain it rather than assuming understanding.
+
+**Example:**
+```typescript
+const { attackerLaunchPosition } = this.state.pendingCombat;
+// This destructuring is equivalent to:
+// const attackerLaunchPosition = this.state.pendingCombat.attackerLaunchPosition;
+```
+
+---
+
+## 19. Prioritize Fixes by Gameplay Impact
+
+When multiple bugs are identified, suggest priority order:
+
+1. **Critical** - Blocks core gameplay (can't move, can't attack, wrong game state)
+2. **Major** - Incorrect behavior that affects strategy (wrong action costs, wrong positions)
+3. **Minor** - UI/UX issues (button enabled when it shouldn't be, display glitches)
+4. **Enhancement** - Not bugs, but improvements (player choice for ambiguous cases)
+
+State the priority explicitly so user can make informed decisions about fix order.

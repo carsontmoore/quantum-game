@@ -336,6 +336,9 @@ export const useGameStore = create<GameStore>()(
               }
             } else {
               result = engine.deploy(playerId, action.shipIndex, action.targetPosition);
+              if (result.success) {
+                get().exitDeployMode();
+              }
             }
             break;
 
@@ -575,11 +578,14 @@ selectCard: (card: AdvanceCard) => {
         set({
           gameState: result.data,
           availableActions: engine.getAvailableActions(),
+          isLoading: false,
         });
 
         if (result.completed && result.combatResult) {
-          get().setCombatResult(result.combatResult, result.data);
+          get().setCombatResult(result.combatResult);
         }
+      } else {
+        set({ isLoading: false }); // Reset on failure too
       }
     },
 
@@ -593,10 +599,11 @@ selectCard: (card: AdvanceCard) => {
         set({
           gameState: result.data,
           availableActions: engine.getAvailableActions(),
+          isLoading: false,
         });
 
         if (result.completed && result.combatResult) {
-          get().setCombatResult(result.combatResult, result.data);
+          get().setCombatResult(result.combatResult);
         }
       }
     },
@@ -1127,6 +1134,13 @@ endTurn: async () => {
 
       if (attackAction && attackAction.combatResult) {
         const combat = attackAction.combatResult;
+          console.log('AI Combat Result:', {
+            winner: combat.winner,
+            attackerTotal: combat.attackerTotal,
+            defenderTotal: combat.defenderTotal,
+            attackerPlayerId: combat.attackerPlayerId,
+            defenderPlayerId: combat.defenderPlayerId,
+          });
         const loserPlayerId = combat.winner === 'attacker'
           ? attackAction.targetPlayerId
           : attackAction.playerId;

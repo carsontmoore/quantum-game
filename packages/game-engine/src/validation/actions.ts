@@ -331,15 +331,11 @@ export function validateConstruct(
   if (!player) {
     return { valid: false, reason: 'Player not found' };
   }
-  
-  // Check for Industrious card (reduces cost to 1)
-  const hasIndustrious = player.activeCommandCards.some(
-    c => c.name === 'Industrious' || c.name === 'Quantum Mastery'
-  );
-  const actionCost = hasIndustrious ? 1 : 2;
+
+  const actionCost = 2;
   
   if (player.actionsRemaining < actionCost) {
-    return { valid: false, reason: `Need ${actionCost} actions to construct` };
+    return { valid: false, reason: `Need 2 actions to construct` };
   }
   
   if (player.quantumCubesRemaining < 1) {

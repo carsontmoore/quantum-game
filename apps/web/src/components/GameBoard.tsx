@@ -83,6 +83,7 @@ export function GameBoard() {
       });
       // Exit Deploy Mode not required - performAction handles it
       return;
+      console.log("CHECK isDeployMode: ", isDeployMode);
     }
     // Handle move/attack (requires selected ship)
     if (!selectedShipId) return;

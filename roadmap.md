@@ -17,12 +17,19 @@
 - [x] Deploy from scrapyard UI (blocking - core mechanic)
 - [x] Advance card selection flow (when earned via research/dominance)
 - [x] BUG : Deploy phase during Reorganization ends after first deployment, even with additional ship deploy options available
+- [x] Combat system refactor to single entry point pattern
+- [x] Combat state machine (pre-combat, rolls, re-roll, resolution phases)
+- [x] Command cards Group 1: Brilliant, Curious (start-of-turn passives)
+- [x] Command cards Group 2: Agile, Energetic, Stealthy, Eager, Precocious, Intelligent, Ingenious, Flexible (constant modifiers)
+- [x] Command cards Group 3: Ferocious, Strategic, Rational, Stubborn, Dangerous, Cruel, Relentless, Scrappy (combat modifiers)
+- [x] Gambit cards: Expansion, Aggression, Momentum, Relocation, Reorganization, Sabotage
 
 
 ### In Progress
 - [ ] Dominance counter appears to work from Advance card (Aggression) but did not update until AI turn (should be instant)
 - [ ] Handle Expansion card selection / free deploy when there are no valid orbital positions 
   - Prevent Expansion card choice (need conditional) if all 5 ships currently in orbit
+- [ ] Test combat refactor (human vs AI, AI vs human, hot-seat, all combat card combinations)
 
 ### Remaining MVP Tasks
 - [ ] Ship ability UI triggers:
@@ -32,6 +39,9 @@
   - Frigate (Modify) - change pip to 3 or 5
   - Interceptor (Maneuver) - diagonal movement (passive, may already work)
   - Scout (Free Reconfigure) - reroll without action cost
+- [ ] Command cards Group 4: Arrogant, Warlike, Conformist, Tactical (conditional action bonuses)
+- [ ] Command cards Group 5: Righteous, Ravenous, Plundering, Tyrannical, Cerebral (dominance/research modifiers)
+- [ ] Command cards Group 6: Resourceful, Cunning, Clever, Nomadic (special abilities)
 
 - [ ] Combat feedback (show dice rolls, animations)
 - [ ] AI turn visibility (display actions taken)
@@ -65,6 +75,16 @@
 - [ ] Double check that ship abilities are functioning
   - Does Frigate have the ability to modify ?
 - [ ] Verify rules that players are unable to skip research gain, and the ensure this is captured in the game mechanics
+- [ ] Address known limitation for multiple launch attack position scenario [Need 2 step attack flow]
+  - When multiple valid launch positions exist, let player choose which adjacent square to attack from
+  - For ships with higher pip values, there could be multiple valid adjacent squares to attack from
+    - Current path algorithm picks one deterministically 
+    - Long term need to implement 2 step attack flow: 
+      - Player Selects ship and enemy target
+      - If multiple valid launch positions exist, show them highlighted and let player choose
+      - Then resolve combat
+- [ ] visual indicator showing attack path before confirming attack
+
 ---
 
 ## Phase 2 - Multiplayer & Persistence
@@ -113,27 +133,44 @@
 - **The Expanse** (2-player large) - Placeholder name, layout, planet positions/numbers
 - Starting planet assignments for each map - Guessed based on corners/edges
 
-### Command Cards (31 fabricated)
-All names, descriptions, and effect implementations are invented:
-- Relentless, Dangerous, Ferocious
-- Agile, Swift
-- Resourceful, Brilliant
-- Resilient, Strategic
-- Industrious, Dominant
-- Ruthless, Cunning, Adaptive, Coordinated
-- Aggressive, Mobile, Evasive, Fortified
-- Expansionist, Researcher, Commander, Flanking
-- Veteran, Prepared, Salvage, Intimidating
-- Pioneers, Quantum Mastery, Overwhelming, Persistent
+### Command Cards (31 total)
+18 implemented, 13 remaining: 
+
+**Implemented:**
+- Group 1: Brilliant, Curious
+- Group 2: Agile, Energetic, Stealthy, Eager, Precocious, Intelligent, Ingenious, Flexible
+- Group 3: Ferocious, Strategic, Rational, Stubborn, Dangerous, Cruel, Relentless, Scrappy
+
+**Remaining:**
+- Group 4: Arrogant, Warlike, Conformist, Tactical
+- Group 5: Righteous, Ravenous, Plundering, Tyrannical, Cerebral
+- Group 6: Resourceful, Cunning, Clever, Nomadic
+
 
 ### Gambit Cards (6 fabricated)
-All names, descriptions, quantities, and effect implementations are invented:
-- Sabotage (2 copies)
-- Quantum Surge (3 copies)
-- Wormhole (3 copies)
-- Colonize (2 copies)
-- Espionage (2 copies)
-- Overdrive (3 copies)
+All implemented: Expansion, Aggression, Momentum, Relocation, Reorganization, Sabotage
+
+
+### Fabricated Advance Cards for potential future inclusion
+- Swift
+- Resilient
+- Industrious
+- Dominant
+- Ruthless
+- Adaptive
+- Coordinated
+- Aggressive
+- Mobile
+- Evasive
+- Fortified
+- Expansionist
+- Researcher
+- Commander
+- Flanking
+- Veteran, Prepared, Salvage, Intimidating
+- Pioneers, Quantum Mastery, Overwhelming, Persistent
+- Gambits:  Quantum Surge, Wormhole, Colonize, Espionage, Overdrive
+
 
 ### Faction Names
 - **Quantum Alliance** - Placeholder name
@@ -183,6 +220,8 @@ Based on our discussions, the following is implemented correctly:
 - [ ] Unit tests for game engine (action validation, combat resolution, win conditions)
 - [ ] Integration tests for AI decision-making
 - [ ] E2E tests for critical user flows
+- [ ] Remove commented-out legacy combat code from game-engine and gameStore after testing confirms refactor works
+- [ ] Unit tests for combat system (phased state machine, card modifiers, edge cases)
 
 ---
 
@@ -194,3 +233,25 @@ Based on our discussions, the following is implemented correctly:
 | Session 1 | Tailwind v4 not loading styles | Fixed: Downgraded to Tailwind v3 with proper config |
 | Session 1 | TypeScript composite project error | Fixed: Added `composite: true` to tsconfig files |
 | Session 1 | Vite not resolving workspace packages | Fixed: Added explicit aliases in vite.config.ts |
+
+
+
+## Bugs during Combat Testing
+- Free reconfigure for ship type 6 cost an action
+  - Ship abilities have yet to be implemented, likely reason why?
+- Previous combatModal that showed combat details (what numbers were rolled) no longer renders
+  - AI attacking human immediately advanced to resolution modal - should it bypass in this way?
+  - All combat details appear to have been lost
+    - Human attacks AI:  modal simply shows result "Defender holds" - does not show dice result or any other detail
+  - Double-check expected modal behavior post-refactor
+- Deploying from scrapyard is broken 
+  - Possible to deploy ship but unable to move it with remaining action 
+    - No Ships in Scrapyard error, Deploy case logging in console
+  - Behavior persists across multiple turns and extends to every deployed ship - HUGE BUG
+
+- No visual cue it is the player's turn / AI turn has ended
+- Rolls phase completely bypassed 
+- Attacker stay in place functionality is broken -  when moving a ship into attack position, the 'stay in place' should not be the original spot , it should be the adjacent spot on the board that the attack is launched from - need to fix - core movement mechanic is currently broken
+- Won attack (human initiated), now unable to utilize remaining actions (ActionBar disabled). Able to yse research only because its available in its own component outside the ActionBar component
+  - clicking research allowed progression and enabled ActionBar for subsequent turn, so issue appears combat resolution related
+- Modal showed me Defender wins, but AI was the attacker and destroyed one of my ships - so combat mapping is broken ?
