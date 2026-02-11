@@ -1102,6 +1102,10 @@ private executeRolls(): void {
     ? (defenderModifiers.push('Rational: roll fixed at 3'), 3)
     : rollDie();
 
+  // Store original rolls before modifiers applied
+  const attackerOriginalRoll = attackerRoll;
+  const defenderOriginalRoll = defenderRoll;
+  
   // Ferocious: -1 to holder's roll
   if (this.hasCommandCard(attackerPlayer, 'ferocious')) {
     attackerRoll = Math.max(1, attackerRoll - 1);
@@ -1118,19 +1122,37 @@ private executeRolls(): void {
 
   // Strategic: -2 if adjacent friendly ships
   if (this.hasCommandCard(attackerPlayer, 'strategic')) {
-    const adjacentFriendly = this.state.ships.filter(s =>
+    const attackLaunch = this.state.pendingCombat.attackerLaunchPosition;
+    const targetPosition = this.state.pendingCombat.targetPosition;
+
+    // Check 1. Is attacker adjacent to a friendly ship?
+    const hasAdjacentAllyAtLaunch = this.state.ships.some(s =>
       s.id !== attackerShipId &&
       s.ownerId === attackerPlayer.id &&
-      s.position && attackerShip.position &&
-      getAdjacentPositions(attackerShip.position).some(
+      s.position && attackLaunch &&
+      getAdjacentPositions(attackLaunch).some(
         adj => adj.x === s.position!.x && adj.y === s.position!.y
       )
     );
-    if (adjacentFriendly.length > 0) {
+
+    // Check 2. Is any friendly ship adjacent to the defender, excluding the attacker ?
+    const hasAllyAdjacentToDefender = this.state.ships.some(s =>
+      s.id !== defenderShipId &&
+      s.ownerId === attackerPlayer.id &&
+      s.position && targetPosition &&
+      getAdjacentPositions(targetPosition).some(
+        adj => adj.x === s.position!.x && adj.y === s.position!.y &&
+        // Exclude the launch position - attacking ship will be there
+        !(adj.x === attackLaunch.x && adj.y === attackLaunch.y)
+      )
+    );
+
+    if (hasAdjacentAllyAtLaunch || hasAllyAdjacentToDefender) {
       attackerTotal -= 2;
       attackerModifiers.push('Strategic: -2 (adjacent ally)');
     }
   }
+
   if (this.hasCommandCard(defenderPlayer, 'strategic')) {
     const adjacentFriendly = this.state.ships.filter(s =>
       s.id !== defenderShipId &&
@@ -1162,6 +1184,8 @@ private executeRolls(): void {
     ...this.state.pendingCombat,
     attackerRoll,
     defenderRoll,
+    attackerOriginalRoll,
+    defenderOriginalRoll,
     attackerTotal,
     defenderTotal,
     attackerModifiers,
@@ -1200,18 +1224,44 @@ private executeReroll(type: 'cruel' | 'relentless' | 'scrappy', initiatedByPlaye
     rerolledSide = initiatedByPlayerId === attackerPlayerId ? 'attacker' : 'defender';
   }
 
+  // let newRoll = rollDie();
+
+  // const rerolledPlayer = rerolledSide === 'attacker' ? attackerPlayer : defenderPlayer;
+  // if (this.hasCommandCard(rerolledPlayer, 'rational')) {
+  //   newRoll = 3;
+  // }
+  // if (this.hasCommandCard(rerolledPlayer, 'ferocious')) {
+  //   newRoll = Math.max(1, newRoll - 1);
+  // }
+
+  // const attackerRoll = rerolledSide === 'attacker' ? newRoll : currentAttackerRoll;
+  // const defenderRoll = rerolledSide === 'defender' ? newRoll : currentDefenderRoll; 
+
+  // Replaced above logic with below to resolve bug where rerolling a ship with a command card
   let newRoll = rollDie();
 
   const rerolledPlayer = rerolledSide === 'attacker' ? attackerPlayer : defenderPlayer;
   if (this.hasCommandCard(rerolledPlayer, 'rational')) {
     newRoll = 3;
   }
+
+  // Capture original roll BEFORE Ferocious modifies it
+  const newOriginalRoll = newRoll;
+
   if (this.hasCommandCard(rerolledPlayer, 'ferocious')) {
     newRoll = Math.max(1, newRoll - 1);
   }
 
   const attackerRoll = rerolledSide === 'attacker' ? newRoll : currentAttackerRoll;
   const defenderRoll = rerolledSide === 'defender' ? newRoll : currentDefenderRoll;
+
+  // Update original rolls to reflect the re-roll
+  const attackerOriginalRoll = rerolledSide === 'attacker' 
+    ? newOriginalRoll 
+    : this.state.pendingCombat.attackerOriginalRoll;
+  const defenderOriginalRoll = rerolledSide === 'defender' 
+    ? newOriginalRoll 
+    : this.state.pendingCombat.defenderOriginalRoll;
 
   let attackerTotal = attackerShip.pipValue + attackerRoll;
   let defenderTotal = defenderShip.pipValue + defenderRoll;
@@ -1244,12 +1294,32 @@ private executeReroll(type: 'cruel' | 'relentless' | 'scrappy', initiatedByPlaye
     }
   }
 
+  // Preserve existing modifiers, or rebuild if reroll affects them
+  let attackerModifiers = [...(this.state.pendingCombat.attackerModifiers || [])];
+  let defenderModifiers = [...(this.state.pendingCombat.defenderModifiers || [])];
+
+  // If rerolling and player has Ferocious, ensure modifier is present
+  if (rerolledSide === 'attacker' && this.hasCommandCard(attackerPlayer, 'ferocious')) {
+    if (!attackerModifiers.some(m => m.includes('Ferocious'))) {
+      attackerModifiers.push('Ferocious: -1 to roll');
+    }
+  }
+  if (rerolledSide === 'defender' && this.hasCommandCard(defenderPlayer, 'ferocious')) {
+    if (!defenderModifiers.some(m => m.includes('Ferocious'))) {
+      defenderModifiers.push('Ferocious: -1 to roll');
+    }
+  }
+
   this.state.pendingCombat = {
     ...this.state.pendingCombat,
     attackerRoll,
     defenderRoll,
+    attackerOriginalRoll,
+    defenderOriginalRoll,
     attackerTotal,
     defenderTotal,
+    attackerModifiers,
+    defenderModifiers,
     rerollsUsed: { ...this.state.pendingCombat.rerollsUsed, [type]: true },
   };
 
@@ -1376,6 +1446,10 @@ private resolveFinalize(moveToTarget: boolean): CombatAdvanceResult {
   const combatResult: CombatResult = {
     attackerRoll,
     defenderRoll,
+    attackerOriginalRoll: this.state.pendingCombat.attackerOriginalRoll,
+    defenderOriginalRoll: this.state.pendingCombat.defenderOriginalRoll,
+    attackerPipValue: attackerShip.pipValue,
+    defenderPipValue: defenderShip.pipValue,
     attackerTotal,
     defenderTotal,
     winner,
@@ -1384,6 +1458,8 @@ private resolveFinalize(moveToTarget: boolean): CombatAdvanceResult {
     attackerNewPipValue,
     attackerPlayerId,
     defenderPlayerId,
+    attackerModifiers: this.state.pendingCombat.attackerModifiers,
+    defenderModifiers: this.state.pendingCombat.defenderModifiers,
     effectsApplied: [],
   };
 

@@ -49,9 +49,15 @@ interface GameStore {
   lastCombatResult: {
     winner: 'attacker' | 'defender' | 'none';
     attackerRoll: number;
+    attackerOriginalRoll: number;
+    attackerPipValue: number;
     attackerTotal: number;
-    defenderTotal: number;
+    attackerModifiers: string[];
     defenderRoll: number;
+    defenderOriginalRoll: number;
+    defenderPipValue: number;
+    defenderTotal: number;
+    defenderModifiers: string[];
     loserNewShipValue: number | null;  // The re-rolled value for scrapyard
     loserPlayerId: string | null;
     dangerousActivated?: boolean;
@@ -579,6 +585,8 @@ selectCard: (card: AdvanceCard) => {
           gameState: result.data,
           availableActions: engine.getAvailableActions(),
           isLoading: false,
+          selectedShipId: null,
+          highlightedPositions: [],
         });
 
         if (result.completed && result.combatResult) {
@@ -600,6 +608,8 @@ selectCard: (card: AdvanceCard) => {
           gameState: result.data,
           availableActions: engine.getAvailableActions(),
           isLoading: false,
+          selectedShipId: null,
+          highlightedPositions: [],
         });
 
         if (result.completed && result.combatResult) {
@@ -613,9 +623,15 @@ selectCard: (card: AdvanceCard) => {
         lastCombatResult: {
           winner: combatResult.dangerousActivated ? 'none' : combatResult.winner,
           attackerRoll: combatResult.attackerRoll,
-          defenderRoll: combatResult.defenderRoll,
+          attackerOriginalRoll: combatResult.attackerOriginalRoll,
+          attackerPipValue: combatResult.attackerPipValue,
           attackerTotal: combatResult.attackerTotal,
+          attackerModifiers: combatResult.attackerModifiers,
+          defenderRoll: combatResult.defenderRoll,
+          defenderOriginalRoll: combatResult.defenderOriginalRoll,
+          defenderPipValue: combatResult.defenderPipValue,
           defenderTotal: combatResult.defenderTotal,
+          defenderModifiers: combatResult.defenderModifiers,
           loserNewShipValue: combatResult.defenderNewPipValue ?? combatResult.attackerNewPipValue ?? null,
           loserPlayerId: combatResult.winner === 'attacker'
             ? combatResult.defenderPlayerId
@@ -1132,30 +1148,36 @@ endTurn: async () => {
       const newActions = newState.actionLog.slice(actionLogLengthBefore);
       const attackAction = newActions.find(a => a.type === ActionType.ATTACK);
 
-      if (attackAction && attackAction.combatResult) {
-        const combat = attackAction.combatResult;
-          console.log('AI Combat Result:', {
-            winner: combat.winner,
-            attackerTotal: combat.attackerTotal,
-            defenderTotal: combat.defenderTotal,
-            attackerPlayerId: combat.attackerPlayerId,
-            defenderPlayerId: combat.defenderPlayerId,
-          });
-        const loserPlayerId = combat.winner === 'attacker'
-          ? attackAction.targetPlayerId
-          : attackAction.playerId;
+      // NOW DEPRECATED - PREVIOUS CONDITIONAL FOR COMBAT RESULT HANDLING
+      // if (attackAction && attackAction.combatResult) {
+      //   const combat = attackAction.combatResult;
+      //     console.log('AI Combat Result:', {
+      //       winner: combat.winner,
+      //       attackerTotal: combat.attackerTotal,
+      //       defenderTotal: combat.defenderTotal,
+      //       attackerPlayerId: combat.attackerPlayerId,
+      //       defenderPlayerId: combat.defenderPlayerId,
+      //     });
+      //   const loserPlayerId = combat.winner === 'attacker'
+      //     ? attackAction.targetPlayerId
+      //     : attackAction.playerId;
         
-        set({
-          lastCombatResult: {
-            winner: combat.winner,
-            attackerRoll: combat.attackerRoll,
-            defenderRoll: combat.defenderRoll,
-            attackerTotal: combat.attackerTotal,
-            defenderTotal: combat.defenderTotal,
-            loserNewShipValue: combat.defenderNewPipValue ?? null,
-            loserPlayerId: loserPlayerId,
-          },
-        });
+      //   set({
+      //     lastCombatResult: {
+      //       winner: combat.winner,
+      //       attackerRoll: combat.attackerRoll,
+      //       defenderRoll: combat.defenderRoll,
+      //       attackerTotal: combat.attackerTotal,
+      //       defenderTotal: combat.defenderTotal,
+      //       loserNewShipValue: combat.defenderNewPipValue ?? null,
+      //       loserPlayerId: loserPlayerId,
+      //     },
+      //   });
+      // }
+
+      // Use canonical method to resolve AI initiated combat
+      if (attackAction && attackAction.combatResult) {
+        get().setCombatResult(attackAction.combatResult);
       }
 
       set({

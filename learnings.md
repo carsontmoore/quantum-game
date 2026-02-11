@@ -590,7 +590,120 @@ const {
 - Common pattern in React/TypeScript codebases
 - Makes code more readable when accessing many properties from one object
 
+---
 
+## 22. Incomplete Object Literals Cause Cascading Failures
+
+**Date:** February 2026
+**Context:** Debug card helper crashed entire game
+
+### The Problem
+Suggested creating card objects without verifying the AdvanceCard type. Objects were missing `categories`, `description`, `count` fields. Card.tsx crashed on `card.categories.map()`.
+
+### The Failure Chain
+1. Debug method pushed incomplete card to state
+2. CommandSheet rendered cards
+3. Card.tsx called `.map()` on undefined `categories`
+4. Every new game crashed immediately
+
+### The Rule
+NEVER create object literals without first seeing:
+1. The type definition
+2. An example of a valid existing object
+
+### Prevention
+Before suggesting: `someArray.push({ field1, field2 })`
+Ask: "Can you share the type definition for objects in this array?"
+
+---
+
+## 23. Incomplete Test Object Literals
+
+**Date:** February 2026
+**Context:** Debug card helper crashed entire game
+
+### The Problem
+Created test card objects without verifying the AdvanceCard type:
+```typescript
+// Missing: categories, description, count
+{ id: 'test', name: 'Test', type: CardType.COMMAND, effect: 'Test' }
+```
+
+Card.tsx crashed on `card.categories.map()`.
+
+### The Rule
+NEVER create object literals without first seeing:
+1. The type definition
+2. An example of a valid existing object
+
+---
+
+## 24. State Preservation in Multi-Step Operations
+
+**Date:** February 2026
+**Context:** executeReroll losing modifier arrays
+
+### The Problem
+`executeReroll` updated `pendingCombat` state but didn't explicitly include `attackerModifiers` and `defenderModifiers`. The spread operator preserved them in some cases but not reliably.
+
+### The Rule
+When updating nested state objects, explicitly include ALL fields that downstream code depends on:
+```typescript
+// WRONG - relies on spread to preserve
+this.state.pendingCombat = {
+  ...this.state.pendingCombat,
+  attackerRoll,
+  defenderRoll,
+};
+
+// RIGHT - explicitly preserve critical fields
+let attackerModifiers = [...(this.state.pendingCombat.attackerModifiers || [])];
+this.state.pendingCombat = {
+  ...this.state.pendingCombat,
+  attackerRoll,
+  defenderRoll,
+  attackerModifiers,
+};
+```
+
+---
+
+## 25. Defensive Array Checks
+
+**Date:** February 2026
+**Context:** `modifiers.some is not a function` crash
+
+### The Problem
+```typescript
+const safeModifiers = modifiers || [];
+safeModifiers.some(...); // Crash if modifiers is truthy but not an array
+```
+
+### The Rule
+Use `Array.isArray()` for defensive array handling:
+```typescript
+const safeModifiers = Array.isArray(modifiers) ? modifiers : [];
+```
+
+---
+
+## 26. Simplest Solution for Debug/Test Code
+
+**Date:** February 2026
+**Context:** Failed runtime debug approach vs hardcoded initial state
+
+### The Problem
+Tried "clever" runtime manipulation to add test cards. Failed multiple times with cascading errors.
+
+### The Rule
+For temporary test code:
+- Hardcode at initialization > runtime manipulation
+- Fewer moving parts = fewer failure points
+- "Cleverness" in throwaway code wastes time
+
+
+
+------------
 
 ## Future Topics to Add
 - [ ] Zustand store patterns

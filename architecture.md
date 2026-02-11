@@ -379,6 +379,166 @@ CombatAdvanceResult  // Includes needsInput, completed, combatResult
 
 ---
 
+## Attack Launch Position
+
+### Problem
+In physical Quantum, a player moves their ship to an adjacent square before initiating combat. The digital version allows clicking directly on an enemy ship anywhere within movement range, creating ambiguity about where the attacker "ends up" after combat.
+
+### Solution
+Calculate the movement path and extract the penultimate position as `attackerLaunchPosition`.
+
+### Implementation
+
+**Type addition (packages/types):**
+```typescript
+interface PendingCombat {
+  attackerOrigin: Position;         // Where ship started its turn
+  attackerLaunchPosition: Position; // Adjacent square from which attack is launched
+  targetPosition: Position;         // Enemy ship location
+  // ... other fields
+}
+```
+
+**Path calculation (initiateAttack):**
+```typescript
+const path = getMovePath(attackerShip, targetPosition, this.state, allowDiagonal);
+
+let attackerLaunchPosition: Position;
+if (path && path.length >= 2) {
+  attackerLaunchPosition = path[path.length - 2];
+} else if (path && path.length === 1) {
+  attackerLaunchPosition = attackerShip.position!;
+} else {
+  attackerLaunchPosition = attackerShip.position!;
+}
+```
+
+**Usage in resolveFinalize:**
+- Attacker wins + moves to target: `position = targetPosition`
+- Attacker wins + stays: `position = attackerLaunchPosition`
+- Attacker loses: `position = attackerLaunchPosition`
+
+### Known Limitation
+When multiple valid launch positions exist (high pip value ships), the path algorithm picks deterministically. Player cannot choose. Future enhancement: two-step attack flow.
+
+---
+
+## Combat Roll Display
+
+### Problem
+Combat modifiers like Ferocious change the dice roll before the total is calculated. Users need to see both the original roll and how it was modified.
+
+### Solution
+Track original roll separately from final roll:
+```typescript
+// In PendingCombat
+attackerOriginalRoll: number;  // What was actually rolled (or 3 if Rational)
+attackerRoll: number;          // After Ferocious applied
+
+// In executeRolls()
+const attackerOriginalRoll = attackerRoll;  // Store before modification
+if (this.hasCommandCard(attackerPlayer, 'ferocious')) {
+  attackerRoll = Math.max(1, attackerRoll - 1);
+}
+```
+
+### Display Format
+```typescript
+const formatCalculation = (pipValue: ShipType, originalRoll: number, finalRoll: number) => {
+  if (originalRoll !== finalRoll) {
+    return `Ship ${pipValue} + Roll ${originalRoll} − ${originalRoll - finalRoll} (Ferocious)`;
+  }
+  return `Ship ${pipValue} + Roll ${finalRoll}`;
+};
+```
+
+Examples:
+- No modifier: `Ship 4 + Roll 3` = 7
+- With Ferocious: `Ship 4 + Roll 3 − 1 (Ferocious)` = 6
+
+---
+
+## Re-roll Strategic Logic
+
+Re-roll cards only help when losing:
+- **Scrappy/Relentless** (re-roll own die): Only useful when losing - hope for lower roll
+- **Cruel** (force opponent re-roll): Only useful when losing - hope they roll higher
+
+When winning, any re-roll can only hurt you. Modal hides re-roll options when player is winning.
+```typescript
+const attackerWinning = attackerTotal <= defenderTotal;
+const iAmLosing = isAttacker ? !attackerWinning : attackerWinning;
+
+if (iAmLosing) {
+  // Show re-roll options
+}
+```
+
+---
+
+## Action Cost Enforcement
+
+### Pattern
+Action costs must be enforced in TWO places:
+1. **Validation** (`actions.ts`) - Prevents invalid actions
+2. **Execution** (`engine/index.ts`) - Deducts the cost
+
+### Example (Construct)
+```typescript
+// Validation (actions.ts)
+if (player.actionsRemaining < 2) {
+  return { valid: false, reason: 'Need 2 actions to construct' };
+}
+
+// Execution (engine/index.ts)
+player.actionsRemaining -= 2;
+```
+
+Both must match. Bug was found where validation required 2 but execution only deducted 1.
+
+---
+
+## UI Button Disabled State
+
+### Pattern
+Buttons must check:
+1. Resource availability (scrapyard, cubes, etc.)
+2. Action count
+3. Card effects that modify requirements
+
+### Example (Deploy button)
+```typescript
+const hasEager = currentPlayer.activeCommandCards.some(
+  c => c.id.toString().split('-')[0].toLowerCase() === 'eager'
+);
+
+disabled={
+  currentPlayer?.scrapyard.length === 0 || 
+  (!hasEager && currentPlayer.actionsRemaining < 1)
+}
+```
+
+This ensures Eager's "free deploy" effect is respected in the UI.
+
+---
+
+## Combat State Cleanup
+
+After combat initiates or any combat phase completes, clear selection state:
+```typescript
+set({
+  gameState: result.data,
+  availableActions: engine.getAvailableActions(),
+  isLoading: false,
+  selectedShipId: null,
+  highlightedPositions: [],
+});
+```
+
+This prevents stale movement highlights from persisting after combat. Since `availableActions` is recalculated, cards granting additional movement (Momentum, Energetic) still work - player just needs to reselect their ship.
+
+---
+
 ## Testing Strategy (Planned)
 
 ### Unit Tests (Priority)
@@ -394,6 +554,118 @@ CombatAdvanceResult  // Includes needsInput, completed, combatResult
 - Card combinations
 - Gambit card flows
 
-### Manual Testing Checklist
+## Strategic Card Implementation
 
-See ROADMAP.md for current testing tasks.
+### Official Rule
+"-2 to your ship's weapons or defenses combat roll if adjacent to another one of your ships (or, if attacking, if one of your ships is adjacent to the defender)"
+
+### Implementation Logic
+
+**For attacker with Strategic:**
+```typescript
+const hasAdjacentAllyAtLaunch = this.state.ships.some(s =>
+  s.id !== attackerShipId &&
+  s.ownerId === attackerPlayer.id &&
+  s.position && attackLaunch &&
+  getAdjacentPositions(attackLaunch).some(
+    adj => adj.x === s.position!.x && adj.y === s.position!.y
+  )
+);
+
+const hasAllyAdjacentToDefender = this.state.ships.some(s =>
+  s.id !== attackerShipId &&
+  s.ownerId === attackerPlayer.id &&
+  s.position && targetPosition &&
+  getAdjacentPositions(targetPosition).some(
+    adj => adj.x === s.position!.x && adj.y === s.position!.y
+  )
+);
+
+if (hasAdjacentAllyAtLaunch || hasAllyAdjacentToDefender) {
+  attackerTotal -= 2;
+}
+```
+
+**For defender with Strategic:**
+- Only checks if defender's position has adjacent friendly ship
+- Does NOT get the "flanking" bonus attackers receive
+
+**Key positions:**
+- `attackerOrigin` - where ship started turn (NOT used for Strategic)
+- `attackerLaunchPosition` - adjacent square where attack initiated (used for Strategic)
+- `targetPosition` - defender's position (used for attacker's flanking check)
+
+### Adjacency Definition
+Orthogonal only (cardinal directions). Diagonal positions do not count.
+
+---
+
+## Combat Modifier Display
+
+### formatCalculation Helper
+```typescript
+const formatCalculation = (
+  pipValue: ShipType,
+  finalRoll: number,
+  modifiers: string[] = []
+) => {
+  const safeModifiers = Array.isArray(modifiers) ? modifiers : [];
+  const hasRational = safeModifiers.some(m => m.includes('Rational'));
+  const hasFerocious = safeModifiers.some(m => m.includes('Ferocious'));
+  const hasStrategic = safeModifiers.some(m => m.includes('Strategic'));
+  
+  let rollDisplay = hasRational ? '3 (Rational)' : `${finalRoll}`;
+  let base = `Ship ${pipValue} + Roll ${rollDisplay}`;
+  
+  if (hasFerocious) base += ` − 1 (Ferocious)`;
+  if (hasStrategic) base += ` − 2 (Strategic)`;
+  
+  return base;
+};
+```
+
+### Why Array.isArray Check
+The `modifiers || []` fallback doesn't catch all cases. If modifiers is corrupted (not null but not an array), `some()` throws. `Array.isArray()` is defensive.
+
+---
+
+## Re-roll Phase Visibility Logic
+
+### When to Show Re-roll Options
+1. Player must be LOSING current combat
+2. If player has Rational, hide own-die re-rolls (Relentless/Scrappy) - re-rolling still gives 3
+3. Cruel (force opponent re-roll) always shown when losing
+```typescript
+const myHasRational = isAttacker 
+  ? attackerModifiers?.some(m => m.includes('Rational'))
+  : defenderModifiers?.some(m => m.includes('Rational'));
+
+if (iAmLosing) {
+  if (attackerCanCruel && !rerollsUsed.cruel) myRerolls.push(...);
+  if (!myHasRational) {
+    if (attackerCanRelentless && !rerollsUsed.relentless) myRerolls.push(...);
+    if (attackerCanScrappy && !rerollsUsed.scrappy) myRerolls.push(...);
+  }
+}
+```
+
+---
+
+## executeReroll Modifier Preservation
+
+### Problem
+After re-roll, `attackerModifiers` and `defenderModifiers` were undefined, causing `formatCalculation` to crash.
+
+### Solution
+Explicitly copy and preserve modifiers in state update:
+```typescript
+let attackerModifiers = [...(this.state.pendingCombat.attackerModifiers || [])];
+let defenderModifiers = [...(this.state.pendingCombat.defenderModifiers || [])];
+
+this.state.pendingCombat = {
+  ...this.state.pendingCombat,
+  attackerModifiers,
+  defenderModifiers,
+  // ... other fields
+};
+```

@@ -18,7 +18,9 @@ import {
   MapConfig,
   FACTIONS,
   CardType,
-  AdvanceCard
+  AdvanceCard,
+  CardCategory,
+  CardType
 } from '@quantum/types';
 import { createCardDeck } from '../cards.js';
 import { shuffle, rollDie } from './dice.js';
@@ -220,6 +222,38 @@ export function createGame(options: CreateGameOptions): GameState {
       bonusMoves: 0,
     };
   });
+
+
+
+  // TEMPORARY - UNCOMMENT TO DEFINE STARTING CARDS FOR TESTING
+// if (players[0]) {
+//   players[0].activeCommandCards = [
+//     { 
+//       id: 'rational-debug', 
+//       name: 'Rational', 
+//       type: CardType.COMMAND, 
+//       categories: [CardCategory.COMBAT],
+//       description: 'Your combat roll is always 3',
+//       count: 1,
+//     },
+//     { 
+//       id: 'strategic-debug', 
+//       name: 'Strategic', 
+//       type: CardType.COMMAND, 
+//       categories: [CardCategory.COMBAT],
+//       description: '-2 to combat total if adjacent friendly ship',
+//       count: 1,
+//     },
+//     { 
+//       id: 'relentless-debug', 
+//       name: 'Relentless', 
+//       type: CardType.COMMAND, 
+//       categories: [CardCategory.COMBAT],
+//       description: 'Re-roll your own die in combat',
+//       count: 1,
+//     },
+//   ];
+// }
   
   // Roll initial ships for each player and place in orbit
   const ships: Ship[] = [];

@@ -49,3 +49,11 @@ Stop immediately and reconsider if about to say:
 
 These indicate guessing rather than verifying.
 
+## When Creating Test/Debug Data
+
+1. NEVER construct objects without seeing the type definition first
+2. If suggesting mock/test data, ask for:
+   - The interface/type definition
+   - An existing example of a valid object
+3. Incomplete objects cause runtime errors that cascade unpredictably
+4. "Quick" debug solutions that skip verification create bigger problems

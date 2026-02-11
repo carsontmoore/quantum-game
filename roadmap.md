@@ -94,6 +94,15 @@
 - [ ] User accounts and statistics
 - [ ] Game history and replays
 - [ ] Interactive setup phase (choose starting planet, place ships manually)
+- [ ] Conversion to server run game-engine, clients become 'dumb' renderers
+
+---
+
+### UI Polish (Phase 1 or 2)
+- [ ] Highlight ships/tiles involved in active combat (visible behind modal)
+- [ ] Combat modifier indicators on ship tiles (e.g., "D" badge for Dangerous, "F" for Ferocious)
+  - Visual cue before initiating combat that opponent has defensive cards
+  - Consider icon or letter badge in corner of ship render
 
 ---
 
@@ -254,4 +263,6 @@ Based on our discussions, the following is implemented correctly:
 - Attacker stay in place functionality is broken -  when moving a ship into attack position, the 'stay in place' should not be the original spot , it should be the adjacent spot on the board that the attack is launched from - need to fix - core movement mechanic is currently broken
 - Won attack (human initiated), now unable to utilize remaining actions (ActionBar disabled). Able to yse research only because its available in its own component outside the ActionBar component
   - clicking research allowed progression and enabled ActionBar for subsequent turn, so issue appears combat resolution related
-- Modal showed me Defender wins, but AI was the attacker and destroyed one of my ships - so combat mapping is broken ?
+- CombatResultModal cleanup 
+  - showing (Roll) (Roll) for AI combatant
+  - showing Relentless option / button when player holds Rational (should override relentless and disable button)

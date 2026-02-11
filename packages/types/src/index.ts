@@ -405,6 +405,12 @@ export interface AttackAction extends BaseAction {
 export interface CombatResult {
   attackerRoll: number;
   defenderRoll: number;
+  attackerOriginalRoll: number;
+  defenderOriginalRoll: number;
+  attackerPipValue: ShipType;
+  defenderPipValue: ShipType;
+  attackerModifiers: string[];
+  defenderModifiers: string[];
   attackerTotal: number;
   defenderTotal: number;
   winner: 'attacker' | 'defender';
@@ -536,6 +542,8 @@ export interface PendingCombat {
   defenderHasDangerous: boolean;
   attackerRoll: number;
   defenderRoll: number;
+  attackerOriginalRoll: number;
+  defenderOriginalRoll: number;
   attackerTotal: number;
   defenderTotal: number;
   attackerModifiers: string[];

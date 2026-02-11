@@ -220,3 +220,77 @@ When multiple bugs are identified, suggest priority order:
 4. **Enhancement** - Not bugs, but improvements (player choice for ambiguous cases)
 
 State the priority explicitly so user can make informed decisions about fix order.
+
+---
+
+## 20. Simplest Solution for Debug/Test Code
+
+For temporary testing code, choose the most reliable approach, not the most elegant:
+- Hardcoded values at initialization > runtime manipulation
+- Fewer moving parts = fewer failure points
+- "Cleverness" in throwaway code wastes time
+
+---
+
+## 21. Verify Types Before Creating Any Object
+
+Before suggesting code that creates an object (mock data, test fixtures, debug helpers):
+
+1. Ask to see the type/interface definition
+2. Ask for an example of an existing valid object
+3. Verify ALL required fields are present
+
+**Example of failure:**
+```typescript
+// Suggested without verifying AdvanceCard type:
+{ id: 'test', name: 'Test', type: CardType.COMMAND, effect: 'Test' }
+
+// Actual type required:
+{ id, name, type, effect, categories, description, count }
+
+// Result: Runtime crash on card.categories.map()
+```
+
+Never assume object shapes. Always verify.
+
+---
+
+## 22. When Debugging Causes New Errors
+
+If a debug/fix attempt causes new errors:
+1. STOP suggesting more fixes
+2. Ask for git diff to see exactly what changed
+3. Examine your own suggestions first, not user error
+4. Revert to last working state before adding complexity
+
+---
+
+---
+
+## 23. Verify Types Before Creating Any Object
+
+Before suggesting code that creates an object:
+1. Ask to see the type/interface definition
+2. Ask for an example of an existing valid object
+3. Verify ALL required fields are present
+
+Never assume object shapes. Always verify.
+
+---
+
+## 24. Simplest Solution for Debug Code
+
+For temporary testing:
+- Hardcode at initialization > runtime manipulation
+- Fewer moving parts = fewer failure points
+- Remove before commit
+
+---
+
+## 25. When Debugging Causes New Errors
+
+If a fix attempt causes new errors:
+1. STOP suggesting more fixes
+2. Examine your own suggestion first, not user error
+3. Ask for git diff to see exactly what changed
+4. Revert to last working state before adding complexity
